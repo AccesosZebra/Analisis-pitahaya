@@ -89,7 +89,9 @@ export async function transcribeAudio(
   if (!res.ok) {
     // El cuerpo trae el motivo real (cuota, clave inválida, audio no soportado);
     // sin él, humanizeError solo vería un número.
-    throw new Error(`Gemini respondió ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    // 1500 y no 300: Gemini pone el `status` (RESOURCE_EXHAUSTED) y la métrica
+    // (free_tier) DESPUÉS de un mensaje largo, y con 300 se perdía qué había pasado.
+    throw new Error(`Gemini respondió ${res.status}: ${(await res.text()).slice(0, 1500)}`);
   }
 
   const data = await res.json() as {

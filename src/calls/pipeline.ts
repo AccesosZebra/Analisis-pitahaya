@@ -7,6 +7,7 @@ import { getCuenta, type Cuenta } from './registry';
 import { getConfig } from './config';
 import { configDeTenant } from './tenant';
 import { recordTokens } from '../tokens/store';
+import { registrarFallo, registrarExito } from '../alerts/saldo';
 import {
   getCall, markTranscrita, markAnalizada, markBuzon, markFallida, type CallRow,
 } from './store';
@@ -83,6 +84,7 @@ export async function processCall(
         getGeminiKey(),
       );
       cobrar(GEMINI_MODEL, t.usage);
+      void registrarExito('gemini');   // cierra el aviso de saldo si lo había
       if (t.esBuzon) {
         // Termina aquí: no hay conversación que analizar y mandarlo al modelo
         // sería pagar por un "Buzón de voz" que ya conocemos.
@@ -99,6 +101,7 @@ export async function processCall(
       getOpenAIKey(),
     );
     cobrar(ANALYSIS_MODEL, a.usage);
+    void registrarExito('openai');
 
     await markAnalizada(cuenta, callId, {
       tipo_contacto: a.TIPO_CONTACTO,
@@ -110,6 +113,8 @@ export async function processCall(
     });
     return { ok: true, estado: 'analizada', buzon: false };
   } catch (e) {
+    // Con el crudo: si es falta de saldo de un proveedor, se avisa (una vez al día).
+    void registrarFallo(e instanceof Error ? e.message : String(e));
     await markFallida(cuenta, callId, e);
     const msg = e instanceof Error ? e.message : String(e);
     console.warn(`[calls] ${slug}/${callId} falló: ${msg}`);

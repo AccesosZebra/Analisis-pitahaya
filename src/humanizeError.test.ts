@@ -63,3 +63,27 @@ test('solo los fallos que son culpa de la llamada gastan intentos', () => {
     assert.strictEqual(esTransitorio(t), false, t);
   }
 });
+
+// Lo que pasó del 8 al 12 de oct de 2026: Gemini sin saldo y el aviso mandaba a
+// compartir el Sheet con la cuenta de servicio, que el pipeline ni usa.
+test('un 403 o la cuota de un proveedor de IA nunca culpa a la cuenta de servicio', () => {
+  for (const raw of [
+    'Gemini respondió 403: {"error":{"code":403,"message":"Your project has been denied access.","status":"PERMISSION_DENIED"}}',
+    'Gemini respondió 429: {"error":{"message":"You exceeded your current quota... generate_content_free_tier_requests, limit: 20","status":"RESOURCE_EXHAUSTED"}}',
+  ]) {
+    const out = humanizeError(raw);
+    assert.doesNotMatch(out, /cuenta de servicio/, raw);
+    assert.match(out, /Gemini se quedó sin saldo.*transcripción.*aistudio/);
+  }
+  assert.match(humanizeError('OpenAI respondió 429: {"error":{"code":"insufficient_quota"}}'), /OpenAI se quedó sin saldo/);
+  assert.match(humanizeError('OpenAI respondió 403: forbidden'), /OpenAI rechazó la petición por permisos.*OPENAI_API_KEY/);
+  assert.match(humanizeError('Gemini respondió 404: models/gemini-x is not found'), /Gemini no encontró el modelo/);
+  // Drive / Sheets de verdad (reportes) siguen con su mensaje.
+  assert.match(humanizeError('The caller does not have permission'), /cuenta de servicio de Google/);
+  assert.match(humanizeError('Requested entity was not found.'), /Google no encontró el Sheet/);
+});
+
+test('sin saldo no gasta intentos: al recargar, lo pendiente se reanuda solo', () => {
+  assert.strictEqual(esTransitorio('Gemini respondió 403: PERMISSION_DENIED'), true);
+  assert.strictEqual(esTransitorio('OpenAI respondió 429: insufficient_quota'), true);
+});

@@ -1,3 +1,5 @@
+import { sinSaldo, PROVEEDORES_IA } from './alerts/saldo';
+
 // Traduce el error crudo de un servicio externo al idioma del usuario que lee
 // la notificación de Chat o la tarjeta de la automatización. El crudo sigue
 // entero en los logs del servidor: aquí solo se decide qué se le enseña a quien
@@ -41,7 +43,26 @@ const PATTERNS: [RegExp, string][] = [
 
 // Un solo error. Si no hay patrón, al menos se le quita el envoltorio JSON del
 // SDK, que es el 90% del ruido que asusta al leerlo.
+// Un 403 o un 404 de un proveedor de IA no tiene nada que ver con Drive: antes
+// caían en los patrones de Google y el aviso mandaba a compartir carpetas con la
+// cuenta de servicio mientras Gemini se había quedado sin saldo.
+const DE_IA = /gemini|generativelanguage|openai|anthropic|permission_error|not_found_error/i;
+
 function one(raw: string): string {
+  // Anthropic conserva su patrón de abajo: un reporte que falló NO se reanuda
+  // solo, hay que volver a ejecutarlo, y su mensaje ya lo dice.
+  const sin = sinSaldo(raw);
+  if (sin && sin !== 'anthropic') {
+    const p = PROVEEDORES_IA[sin];
+    return `La API de ${p.nombre} se quedó sin saldo o tiene la facturación bloqueada, así que ${p.frena}. `
+         + `Recarga en ${p.consola}: lo pendiente se reanuda solo.`;
+  }
+  if (DE_IA.test(raw) && /PERMISSION_DENIED|permission_error|\b403\b/i.test(raw)) {
+    return `La API de ${NOMBRE(raw)} rechazó la petición por permisos. Revisa en su consola que la API key esté activa y con facturación, o la variable ${ENVVAR(raw)}.`;
+  }
+  if (DE_IA.test(raw) && /not_found_error|NOT_FOUND|\b404\b/i.test(raw)) {
+    return `La API de ${NOMBRE(raw)} no encontró el modelo pedido. Puede que lo hayan retirado: hay que actualizar el nombre del modelo en el código.`;
+  }
   for (const [re, msg] of PATTERNS) {
     if (re.test(raw)) return msg.replace('{p}', NOMBRE(raw)).replace('{env}', ENVVAR(raw));
   }
@@ -77,9 +98,11 @@ function collapse(prefix: string, body: string, sep: string): string {
  * ponytail: una cuota agotada de verdad reintentará cada minuto sin avanzar. Si
  * eso llega a pesar, cortar por `insufficient_quota` con un backoff por cuenta.
  */
+// Sin saldo tampoco es culpa de la llamada: si gastara intentos, al recargar
+// quedarían congeladas todas las que fallaron mientras tanto.
 export const esTransitorio = (raw: string): boolean =>
   /rate_limit_error|overloaded_error|\b(429|502|503|504|529)\b|ETIMEDOUT|ECONNRESET|socket hang up|fetch failed/i
-    .test(raw || '');
+    .test(raw || '') || sinSaldo(raw || '') !== null;
 
 export function humanizeError(raw: string): string {
   const s = (raw || '').trim();

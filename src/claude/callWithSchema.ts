@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { registrarFallo, registrarExito } from '../alerts/saldo';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Una llamada a Claude con tool use, validada contra un esquema, con reintentos
@@ -55,7 +56,13 @@ export async function callWithSchema<S extends z.ZodTypeAny>(
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const res = await opts.send(messages);
+      // Todas las llamadas a Claude pasan por aquí: es el único sitio donde
+      // engancharlas al aviso de saldo (reportes, ejecutivo y Radar).
+      const res = await opts.send(messages).catch((e: unknown) => {
+        void registrarFallo(e instanceof Error ? e.message : String(e));
+        throw e;
+      });
+      void registrarExito('anthropic');
       totalInput  += res.usage.input_tokens;
       totalOutput += res.usage.output_tokens;
 

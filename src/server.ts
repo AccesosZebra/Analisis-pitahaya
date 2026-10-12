@@ -23,6 +23,8 @@ import callsRouter from './routes/calls';
 import zcisRouter from './routes/zcis';
 import usersRouter from './routes/users';
 import tenantDbRouter from './routes/tenantDb';
+import avisosRouter from './routes/avisos';
+import { iniciarAvisos } from './alerts/saldo';
 import authRouter from './auth/router';
 import { requireApiAuth, requirePage, enforcePolicy } from './auth/middleware';
 import { authConfig } from './auth/config';
@@ -64,6 +66,7 @@ app.use('/api/calls', callsRouter);            // monitoreo del pipeline de llam
 app.use('/api/zcis', zcisRouter);              // oferta del cliente desde el panel ZCIS
 app.use('/api/users', usersRouter);            // usuarios externos (admin)
 app.use('/api/tenant/db', tenantDbRouter);     // conexion a la base del cliente externo
+app.use('/api/avisos', avisosRouter);          // saldo de los proveedores de IA (admin)
 
 // ── Protected frontend (redirect to /login when unauthenticated) ──────────────
 app.use(requirePage);
@@ -110,6 +113,7 @@ async function bootstrap(): Promise<void> {
     // origen se procesa es su interruptor de Ajustes, no una variable que nadie
     // ve: sin fila de configuración o con el switch apagado, el tick no lo toca.
     if (callsDbEnabled()) startCallsSweeper();
+    iniciarAvisos();   // recordatorios de saldo de IA, aunque no entren llamadas
   });
 }
 

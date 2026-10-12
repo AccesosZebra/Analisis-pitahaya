@@ -698,6 +698,34 @@ body[data-theme="light"] .client-row.origen:not(.vinculado){background:var(--sur
 .tdb-ok-acciones{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:18px}
 /* display:flex le gana al [hidden] del navegador: sin esto, ocultar no oculta. */
 .tdb-pasos[hidden],.tdb-ok-aviso[hidden]{display:none}
+/* Saldo de IA: el globo de Ajustes, el punto del menú y la sección del canal.
+   Sin saldo se para el pipeline en silencio, así que se dice nada más entrar. */
+.saldo-banner{display:flex;gap:12px;align-items:flex-start;margin:0 0 22px;padding:14px 16px;border-radius:12px;
+  background:color-mix(in srgb, var(--danger) 10%, var(--surface));border:0.5px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  font-size:var(--t-sec);line-height:1.55;color:var(--fg)}
+.saldo-banner[hidden]{display:none}
+.saldo-banner>i{font-size:18px;color:var(--danger);line-height:1.3;flex-shrink:0}
+.saldo-banner p{margin:0}
+.saldo-banner p+p{margin-top:6px}
+.saldo-banner .saldo-nota{color:var(--muted)}
+.saldo-banner a{color:inherit;text-underline-offset:3px}
+.nav-dot{width:7px;height:7px;border-radius:50%;background:var(--danger);margin-left:auto;flex-shrink:0;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent)}
+.nav-dot[hidden]{display:none}
+body.nav-collapsed .nav-dot{position:absolute;top:8px;right:8px;margin:0}
+#tab-btn-settings{position:relative}
+.saldo-card{padding:20px 22px}
+.saldo-provs{display:flex;flex-direction:column;gap:10px;padding-bottom:18px;margin-bottom:18px;border-bottom:0.5px solid var(--border)}
+.saldo-prov{display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:4px 16px;font-size:var(--t-sec);line-height:1.5}
+.saldo-prov b{font-weight:500;color:var(--fg)}
+.saldo-prov span{color:var(--muted)}
+.saldo-estado{display:inline-flex;align-items:center;gap:7px}
+.saldo-estado::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--success);flex-shrink:0}
+.saldo-estado.mal{color:var(--danger)}
+.saldo-estado.mal::before{background:var(--danger)}
+.saldo-canal-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.saldo-canal-row>:first-child{flex:1;min-width:220px;max-width:420px}
+@media(max-width:640px){.saldo-prov{grid-template-columns:1fr}}
 .chip-row span{font-size:var(--t-label);letter-spacing:.02em;padding:3px 8px;border-radius:999px;
   border:0.5px solid var(--border2);color:var(--muted);white-space:nowrap}
 .calls-counts{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
@@ -843,7 +871,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     <button class="app-tab" id="tab-btn-automation" data-admin onclick="setTab('automation')" title="Automatización"><i class="ti ti-bolt"></i><span>Automatización</span></button>
     <button class="app-tab" id="tab-btn-calls" onclick="setTab('calls')" title="Llamadas"><i class="ti ti-phone"></i><span>Llamadas</span></button>
     <div class="sb-group">Sistema</div>
-    <button class="app-tab" id="tab-btn-settings" onclick="setTab('settings')" title="Ajustes"><i class="ti ti-settings"></i><span>Ajustes</span></button>
+    <button class="app-tab" id="tab-btn-settings" onclick="setTab('settings')" title="Ajustes"><i class="ti ti-settings"></i><span>Ajustes</span><i class="nav-dot" id="saldo-dot" hidden aria-label="Un proveedor de IA se quedó sin saldo"></i></button>
     <button class="app-tab" id="tab-btn-admin" data-admin onclick="setTab('admin')" title="Admin"><i class="ti ti-shield-lock"></i><span>Admin</span></button>
   </nav>
   <div class="sb-foot">
@@ -1129,6 +1157,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
   <!-- ── Settings panel ── -->
   <div id="tab-settings" class="tab-panel">
     <div id="settings-admin" data-admin>
+    <div class="saldo-banner" id="saldo-banner" role="status" hidden></div>
     <div class="panel-header">
       <div></div>
       <button class="btn-sm btn-sm-green" onclick="openClientForm()"><i class="ti ti-plus" style="font-size:var(--t-sec);vertical-align:middle;"></i>&nbsp;Nuevo cliente</button>
@@ -1142,6 +1171,23 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       </div>
     </div>
     <div id="origen-list"></div>
+
+    <div class="panel-header" style="margin-top:38px;" id="saldo-seccion">
+      <div>
+        <div class="panel-title">Avisos de saldo de IA</div>
+        <div class="panel-sub">Si Gemini, OpenAI o Anthropic se quedan sin saldo, se avisa a este espacio de Chat: el aviso al detectarlo y un recordatorio al día hasta que se resuelva.</div>
+      </div>
+    </div>
+    <div class="card saldo-card">
+      <div class="saldo-provs" id="saldo-provs"></div>
+      <label class="form-label" for="saldo-space">Espacio de Chat para los avisos</label>
+      <div class="saldo-canal-row">
+        <select id="saldo-space"><option value="">Cargando espacios…</option></select>
+        <button class="btn-sm btn-sm-green" onclick="guardarCanalSaldo(this)">Guardar</button>
+        <button class="btn-sm btn-sm-cancel" onclick="probarCanalSaldo(this)">Enviar prueba</button>
+      </div>
+      <div class="form-hint" id="saldo-result">El bot de Zebra Reports tiene que estar en el espacio. "Enviar prueba" lo comprueba.</div>
+    </div>
 
     </div><!-- /settings-admin -->
 
@@ -3158,6 +3204,8 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       if (esCliente()) {
         document.body.dataset.role = 'client';
         _APP_TABS = ['reports', 'radar', 'calls', 'settings'];
+      } else if (me?.role === 'admin') {
+        void refreshSaldo();   // el punto del menú se ve nada más entrar
       }
       return me;
     })
@@ -4369,7 +4417,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       document.getElementById('topbar-title').textContent = meta[0];
       document.getElementById('topbar-sub').textContent   = meta[1];
     }
-    if (tab === 'settings')   { if (esCliente()) { renderClientSettings(); } else { renderClientList(); renderOrigenes(); } }
+    if (tab === 'settings')   { if (esCliente()) { renderClientSettings(); } else { renderClientList(); renderOrigenes(); void refreshSaldo(); void _cargarEspaciosSaldo(); } }
     if (tab === 'admin')      renderAdmin();
     if (tab === 'automation') { renderScheduleList(); startSchedulePolling(); }
     if (tab === 'dashboard' && document.getElementById('dash-client-select').value) renderDashboard();
@@ -5721,6 +5769,110 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     const b = document.getElementById('client-modal-backdrop');
     b.classList.remove('show'); b.style.display = 'none';
     _editingClientId = null;
+  }
+
+  // ── Saldo de los proveedores de IA ────────────────────────────────────────
+  // Sin saldo en Gemini u OpenAI se para el análisis de llamadas en silencio:
+  // aquí se dice al entrar (punto del menú y globo de Ajustes) y se elige el
+  // espacio de Chat al que se avisa una vez al día hasta que se resuelva.
+  let _saldo = { config: null, activos: [] };
+  const _SALDO_PROVS = [
+    ['gemini',    'Gemini',    'Transcripción de llamadas'],
+    ['openai',    'OpenAI',    'Análisis de llamadas'],
+    ['anthropic', 'Anthropic', 'Reportes y Radar'],
+  ];
+  const _fechaCorta = iso => new Date(iso).toLocaleString('es-MX',
+    { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+  async function refreshSaldo() {
+    try {
+      const r = await fetch('/api/avisos');
+      if (!r.ok) return;
+      _saldo = await r.json();
+      _pintarSaldo();
+    } catch { /* informativo: sin esto la app sigue funcionando */ }
+  }
+
+  function _pintarSaldo() {
+    const { config, activos = [] } = _saldo;
+    document.getElementById('saldo-dot').hidden = !activos.length;
+
+    const banner = document.getElementById('saldo-banner');
+    banner.hidden = !activos.length;
+    if (activos.length) {
+      const avisos = config
+        ? `Avisando en ${_esc(config.space_name)} una vez al día hasta que se resuelva.`
+        : `Aún no hay espacio de Chat para avisar: <a href="#saldo-seccion">elígelo abajo</a>.`;
+      banner.innerHTML = `<i class="ti ti-alert-triangle" aria-hidden="true"></i><div>`
+        + activos.map(a => `<p><b>${_esc(a.nombre)} se quedó sin saldo</b> el ${_fechaCorta(a.desde)}: `
+          + `${_esc(a.frena)}. Recarga en ${_esc(a.consola)}; en cuanto vuelva a responder se reanuda solo.</p>`).join('')
+        + `<p class="saldo-nota">${avisos}</p></div>`;
+    }
+
+    document.getElementById('saldo-provs').innerHTML = _SALDO_PROVS.map(([id, nombre, uso]) => {
+      const a = activos.find(x => x.proveedor === id);
+      const estado = a
+        ? `<span class="saldo-estado mal">Sin saldo desde el ${_fechaCorta(a.desde)}`
+          + (a.avisos ? ` · ${a.avisos} ${a.avisos === 1 ? 'aviso enviado' : 'avisos enviados'}` : '') + `</span>`
+        : `<span class="saldo-estado">Sin incidencias</span>`;
+      return `<div class="saldo-prov"><div><b>${nombre}</b> <span>· ${uso}</span></div>${estado}</div>`;
+    }).join('');
+  }
+
+  async function _cargarEspaciosSaldo() {
+    const sel = document.getElementById('saldo-space');
+    try {
+      const spaces = await _fetchSpacesCached();
+      const actual = _saldo.config?.space_id || '';
+      sel.innerHTML = '<option value="">— Sin avisos por Chat —</option>' + spaces.map(sp =>
+        `<option value="${_esc(sp.id)}"${sp.id === actual ? ' selected' : ''}>${_esc(sp.name)}</option>`).join('');
+      // El guardado puede ser de un espacio del que el bot ya salió: se enseña igual.
+      if (actual && !spaces.some(sp => sp.id === actual)) {
+        sel.insertAdjacentHTML('beforeend', `<option value="${_esc(actual)}" selected>${_esc(_saldo.config.space_name)} (sin acceso)</option>`);
+      }
+    } catch (e) {
+      sel.innerHTML = `<option value="">No se pudieron cargar los espacios</option>`;
+    }
+  }
+
+  function _saldoSay(msg, color) {
+    const out = document.getElementById('saldo-result');
+    out.textContent = msg; out.style.color = color;
+  }
+
+  async function guardarCanalSaldo(btn) {
+    const sel = document.getElementById('saldo-space');
+    const space_id = sel.value || null;
+    btn.disabled = true;
+    try {
+      const r = await fetch('/api/avisos', {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ space_id, space_name: sel.selectedOptions[0]?.textContent || '' }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      _saldoSay(space_id ? `Guardado: los avisos irán a ${sel.selectedOptions[0].textContent}.` : 'Avisos por Chat desactivados.', 'var(--success)');
+      await refreshSaldo();
+    } catch (e) {
+      _saldoSay(e.message, 'var(--danger)');
+    } finally { btn.disabled = false; }
+  }
+
+  async function probarCanalSaldo(btn) {
+    const sel = document.getElementById('saldo-space');
+    if (!sel.value) { _saldoSay('Elige primero un espacio.', 'var(--danger)'); return; }
+    const original = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    try {
+      const r = await fetch('/api/avisos/prueba', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ space_id: sel.value }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      _saldoSay(`Mensaje de prueba enviado a ${sel.selectedOptions[0].textContent}.`, 'var(--success)');
+    } catch (e) {
+      _saldoSay(e.message, 'var(--danger)');
+    } finally { btn.disabled = false; btn.textContent = original; }
   }
 
   // Shared, cached lookup of Google Chat spaces (used by the schedule form).

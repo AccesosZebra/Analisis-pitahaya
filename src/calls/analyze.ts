@@ -62,7 +62,9 @@ export async function analyzeTranscript(
   });
 
   if (!res.ok) {
-    throw new Error(`OpenAI respondió ${res.status}: ${(await res.text()).slice(0, 300)}`);
+    // 1500 y no 300: Gemini pone el `status` (RESOURCE_EXHAUSTED) y la métrica
+    // (free_tier) DESPUÉS de un mensaje largo, y con 300 se perdía qué había pasado.
+    throw new Error(`OpenAI respondió ${res.status}: ${(await res.text()).slice(0, 1500)}`);
   }
 
   const data = await res.json() as {

@@ -53,6 +53,7 @@ export const ADVISORS_TABLE = 'advisors';
 export const APP_USERS_TABLE = 'app_users';   // usuarios externos (rol client)
 export const TENANT_DB_TABLE = 'tenant_db';   // conexion a la base de cada cliente externo (password cifrada)
 export const CALLS_TABLE = 'calls';
+export const AVISOS_TABLE = 'avisos_ia';    // saldo de los proveedores de IA + canal de aviso
 
 /**
  * Creates the tables if they don't exist. Safe to run on every boot.
@@ -63,7 +64,7 @@ export const CALLS_TABLE = 'calls';
 export async function ensureSchema(): Promise<void> {
   if (!pool) return;
   // Config + job tables: full object stored per row in a jsonb column.
-  for (const table of [CLIENTS_TABLE, SCHEDULES_TABLE, JOBS_TABLE, ADVISORS_TABLE, APP_USERS_TABLE, TENANT_DB_TABLE]) {
+  for (const table of [CLIENTS_TABLE, SCHEDULES_TABLE, JOBS_TABLE, ADVISORS_TABLE, APP_USERS_TABLE, TENANT_DB_TABLE, AVISOS_TABLE]) {
     await pool.query(
       `CREATE TABLE IF NOT EXISTS ${table} (
          id         TEXT PRIMARY KEY,
@@ -138,7 +139,7 @@ export async function ensureSchema(): Promise<void> {
   // esa misma instancia. Crear la tabla aqui la dejaba huerfana en la base
   // equivocada, sin poder cruzarse con las llamadas que tiene que leer.
   // El pipeline usa su propio pool; ver calls/.
-  console.log('[db] Schema ready (clients, schedules, jobs, token_log, report_metrics, advisors, app_users, tenant_db)');
+  console.log('[db] Schema ready (clients, schedules, jobs, token_log, report_metrics, advisors, app_users, tenant_db, avisos_ia)');
 }
 
 // ── Generic keyed-jsonb helpers ─────────────────────────────────────────────
