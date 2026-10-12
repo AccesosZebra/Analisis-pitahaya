@@ -246,6 +246,9 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     // La transcripción pesa decenas de KB por fila y la lista no la muestra.
     res.json({
       cuenta: { slug: cuenta.slug, cliente: cuenta.cliente, habilitada: cuenta.habilitada },
+      // Las reglas que deciden qué filas salen, con los valores de ESTE cliente:
+      // el (i) de la pestaña las explica sin inventarse números.
+      reglas: { umbral, desde: DESDE },
       counts,
       calls: calls.map(c => ({ ...c, transcripcion: undefined,
                                tiene_transcripcion: Boolean(c.transcripcion) })),

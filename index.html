@@ -731,6 +731,26 @@ body.nav-collapsed .nav-dot{position:absolute;top:8px;right:8px;margin:0}
 .chip-row span{font-size:var(--t-label);letter-spacing:.02em;padding:3px 8px;border-radius:999px;
   border:0.5px solid var(--border2);color:var(--muted);white-space:nowrap}
 .calls-counts{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+/* Las reglas que deciden qué llamadas salen. Sin esto, comparar con Postgres
+   parecía que faltaban filas: las perdidas sin grabación y el desfase UTC. */
+.calls-reglas-wrap{position:relative;margin-left:auto;align-self:flex-end}
+.calls-reglas-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;margin-bottom:2px;
+  background:none;border:0.5px solid var(--border2);border-radius:50%;cursor:pointer;color:var(--muted);transition:color .15s,border-color .15s}
+.calls-reglas-btn i{font-size:18px}
+.calls-reglas-btn:hover,.calls-reglas-btn[aria-expanded="true"]{border-color:var(--fg)}
+.calls-reglas-btn:hover,.calls-reglas-btn[aria-expanded="true"]{color:var(--fg)}
+.calls-reglas-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.calls-reglas{position:absolute;right:0;top:calc(100% + 8px);z-index:500;width:min(380px,calc(100vw - 32px));
+  background:var(--surface2);border:0.5px solid var(--border2);border-radius:14px;padding:16px 18px;
+  box-shadow:0 12px 40px rgba(0,0,0,.45);font-size:var(--t-sec);line-height:1.55;color:var(--muted)}
+.calls-reglas[hidden]{display:none}
+.calls-reglas-t{color:var(--fg);font-weight:600;margin-bottom:8px}
+.calls-reglas ul{margin:0;padding-left:18px}
+.calls-reglas li+li{margin-top:7px}
+.calls-reglas b{color:var(--fg);font-weight:500}
+.calls-filtros{position:relative}
+/* Estrecho: el panel se ancla a la tarjeta de filtros y no al botón, o se sale. */
+@media(max-width:640px){.calls-reglas-wrap{position:static}.calls-reglas{left:16px;right:16px;top:auto;width:auto;margin-top:8px}}
 .calls-chip{font-size:var(--t-ui);letter-spacing:var(--tk-label);text-transform:uppercase;padding:4px 10px;
   border-radius:999px;border:1px solid var(--line,#2a2a2a);background:rgba(255,255,255,.03)}
 /* Columnas más ajustadas que antes: con el panel de detalle al lado, la lista
@@ -1413,7 +1433,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       <button class="btn-sm" data-admin onclick="reprocessCalls(this)"><i class="ti ti-refresh" style="font-size:var(--t-sec);vertical-align:middle;"></i>&nbsp;Reprocesar pendientes</button>
     </div>
 
-    <div class="card" style="margin-bottom:14px;">
+    <div class="card calls-filtros" style="margin-bottom:14px;">
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
         <!-- Un cliente externo tiene UNA cuenta, la suya: elegir no significa nada. -->
         <div class="field" id="calls-cuenta-field" data-admin style="min-width:170px;margin:0;">
@@ -1485,6 +1505,13 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
             <div class="cal-rows" id="calls-to-cal-rows"></div>
           </div>
         </div>
+        </div>
+        <div class="calls-reglas-wrap" id="calls-reglas-wrap">
+          <button type="button" class="calls-reglas-btn" id="calls-reglas-btn" aria-expanded="false" aria-controls="calls-reglas"
+                  aria-label="Qué llamadas aparecen aquí" title="Qué llamadas aparecen aquí" onclick="toggleReglasCalls()">
+            <i class="ti ti-info-circle" aria-hidden="true"></i>
+          </button>
+          <div class="calls-reglas" id="calls-reglas" role="dialog" aria-label="Qué llamadas aparecen aquí" hidden></div>
         </div>
       </div>
       <div id="calls-counts" class="calls-counts"></div>
@@ -8005,6 +8032,43 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
   // llamada en <schema>.llamadas, y su analisis al lado en <schema>.analisis.
   // Por eso el selector es de CUENTA (callpicker_registro) y no de cliente.
   const CALLS_API = '/api/calls';
+
+  // Valores del cliente elegido (los manda /api/calls); antes de la primera
+  // respuesta, los del pipeline por defecto.
+  let _callsReglas = { umbral: 100, desde: '2026-08-01' };
+
+  function _pintarReglasCalls() {
+    const { umbral, desde } = _callsReglas;
+    const min = umbral % 60 ? `${umbral} s` : `${umbral / 60} min`;
+    const [y, m, d] = desde.split('-').map(Number);
+    document.getElementById('calls-reglas').innerHTML =
+      `<div class="calls-reglas-t">Qué llamadas aparecen aquí</div><ul>`
+      + `<li><b>Solo las que tienen grabación.</b> Las perdidas sin audio (Lost, Lost_by_agent) no se listan: no hay nada que transcribir.</li>`
+      + `<li><b>Se analizan las de ${min} o más.</b> Las más cortas salen como "Corta": se ven eligiendo ese estado, y en "Todos" se ocultan.</li>`
+      + `<li><b>Las fechas van en hora de México.</b> Postgres las guarda en UTC (6 h más): una llamada de las 18:00 o después aparece allí con fecha del día siguiente.</li>`
+      + `<li><b>"Todo" empieza el ${d} de ${_DATE_MONTHS[m - 1].toLowerCase()} de ${y}.</b> Lo anterior no se lista ni se analiza.</li>`
+      + `</ul>`;
+  }
+
+  function toggleReglasCalls(force) {
+    const btn = document.getElementById('calls-reglas-btn');
+    const panel = document.getElementById('calls-reglas');
+    const abrir = force ?? panel.hidden;
+    if (abrir) _pintarReglasCalls();
+    panel.hidden = !abrir;
+    btn.setAttribute('aria-expanded', String(abrir));
+  }
+  // Se cierra al hacer clic fuera o con Escape, como los calendarios.
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#calls-reglas-wrap')) {
+      const p = document.getElementById('calls-reglas');
+      if (p && !p.hidden) toggleReglasCalls(false);
+    }
+  });
+  document.addEventListener('keydown', e => {
+    const p = document.getElementById('calls-reglas');
+    if (e.key === 'Escape' && p && !p.hidden) { toggleReglasCalls(false); document.getElementById('calls-reglas-btn').focus(); }
+  });
   let _callSel = null;        // { slug, call_id } de la fila seleccionada
   const _callsPorId = new Map();  // lo que el listado ya trajo, por call_id
 
@@ -8079,7 +8143,8 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     try {
       const r = await fetch(`${CALLS_API}?${q}`);
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`);
-      const { calls, counts, cuenta, aviso } = await r.json();
+      const { calls, counts, cuenta, aviso, reglas } = await r.json();
+      if (reglas) _callsReglas = reglas;
       const slug = cuenta?.slug || '';
       if (aviso) {
         document.getElementById('calls-counts').innerHTML = '';
