@@ -8035,18 +8035,16 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
 
   // Valores del cliente elegido (los manda /api/calls); antes de la primera
   // respuesta, los del pipeline por defecto.
-  let _callsReglas = { umbral: 100, desde: '2026-08-01' };
+  let _callsReglas = { umbral: 100 };
 
   function _pintarReglasCalls() {
-    const { umbral, desde } = _callsReglas;
+    const { umbral } = _callsReglas;
     const min = umbral % 60 ? `${umbral} s` : `${umbral / 60} min`;
-    const [y, m, d] = desde.split('-').map(Number);
     document.getElementById('calls-reglas').innerHTML =
       `<div class="calls-reglas-t">Qué llamadas aparecen aquí</div><ul>`
       + `<li><b>Solo las que tienen grabación.</b> Las perdidas sin audio (Lost, Lost_by_agent) no se listan: no hay nada que transcribir.</li>`
       + `<li><b>Se analizan las de ${min} o más.</b> Las más cortas salen como "Corta": se ven eligiendo ese estado, y en "Todos" se ocultan.</li>`
       + `<li><b>Las fechas van en hora de México.</b> Postgres las guarda en UTC (6 h más): una llamada de las 18:00 o después aparece allí con fecha del día siguiente.</li>`
-      + `<li><b>"Todo" empieza el ${d} de ${_DATE_MONTHS[m - 1].toLowerCase()} de ${y}.</b> Lo anterior no se lista ni se analiza.</li>`
       + `</ul>`;
   }
 
