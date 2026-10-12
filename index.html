@@ -814,8 +814,12 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
    viewport describía un ancho que ya no tiene. */
 /* Prefijado para ganarle en especificidad a la plantilla de .ancha, que si no
    le imponía 150px de fecha y cortaba al asesor con la ficha abierta. */
-.calls-cols .calls-list-card .calls-row.compacta{grid-template-columns:110px minmax(0,1fr) 84px;font-size:var(--t-sec)}
-.calls-row.compacta>:nth-child(n+4){display:none}
+/* Compacta conserva el Estado: es lo que se recorre con la vista; Calif. y el
+   botón viven en la ficha abierta. Anchos medidos: "Sin procesar" 84px,
+   "Duración" 78px, la fecha 95px. */
+.calls-cols .calls-list-card .calls-row.compacta{grid-template-columns:100px minmax(0,1fr) 78px 86px;font-size:var(--t-sec)}
+.calls-cols .calls-list-card .calls-row.compacta>:nth-child(n+5){display:none}
+.calls-cols .calls-list-card .calls-row.compacta>:nth-child(4){display:block}
   </style>
 </head>
 <body data-theme="dark">
