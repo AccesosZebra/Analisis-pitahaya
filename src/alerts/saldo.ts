@@ -165,16 +165,28 @@ export async function registrarFallo(raw: string): Promise<void> {
   }
 }
 
+async function cerrar(p: Proveedor, motivo: string): Promise<boolean> {
+  await cargar();
+  if (!_activos.delete(p)) return false;
+  if (dbEnabled) await dbDelete(AVISOS_TABLE, p);
+  console.log(`[avisos] ${PROVEEDORES_IA[p].nombre}: aviso cerrado (${motivo})`);
+  return true;
+}
+
 /** Llamar tras cada respuesta buena del proveedor: cierra la racha si la había. */
 export async function registrarExito(p: Proveedor): Promise<void> {
-  try {
-    await cargar();
-    if (!_activos.delete(p)) return;
-    if (dbEnabled) await dbDelete(AVISOS_TABLE, p);
-    console.log(`[avisos] ${PROVEEDORES_IA[p].nombre} vuelve a funcionar: aviso cerrado`);
-  } catch (err) {
-    console.warn('[avisos] registrarExito:', (err as Error).message);
-  }
+  try { await cerrar(p, 'vuelve a responder'); }
+  catch (err) { console.warn('[avisos] registrarExito:', (err as Error).message); }
+}
+
+/**
+ * Cierre a mano, desde Ajustes: para cuando se recargó y no queda ninguna
+ * llamada pendiente que lo demuestre. Si en realidad sigue sin saldo, el
+ * siguiente fallo abre una racha nueva y vuelve a avisar: no silencia nada
+ * que siga roto.
+ */
+export async function marcarResuelto(p: Proveedor): Promise<boolean> {
+  return cerrar(p, 'marcado como resuelto en Ajustes');
 }
 
 /**

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sinSaldo, tocaAvisar, textoAviso, type EstadoSaldo } from './saldo';
+import { sinSaldo, tocaAvisar, textoAviso, registrarFallo, registrarExito, marcarResuelto, estadosActivos, type EstadoSaldo } from './saldo';
 
 // El 429 real de Gemini con la cuenta sin saldo (12 oct 2026): cayó al nivel
 // gratuito y el límite diario de 20 se agotó. Debe contar como saldo, no como
@@ -46,4 +46,19 @@ test('textoAviso: aviso el primero, recordatorio con los días que lleva despué
   assert.match(primero, /aistudio\.google\.com/);
   assert.match(textoAviso(base({ avisos: 1 }), ahora), /Recordatorio: Gemini sigue sin saldo\* \(3 días\)/);
   assert.match(textoAviso(base({ proveedor: 'anthropic', avisos: 2 }), ahora), /Anthropic.*\n.*reportes/);
+});
+
+// Sin DATABASE_URL el estado vive en memoria y no hay canal: se prueba el ciclo
+// sin red ni base.
+test('ciclo: un fallo abre el aviso, marcarlo lo cierra, y si vuelve a fallar se reabre', async () => {
+  await registrarFallo(GEMINI_SIN_SALDO);
+  assert.deepEqual((await estadosActivos()).map(e => e.proveedor), ['gemini']);
+  assert.equal(await marcarResuelto('gemini'), true);
+  assert.equal((await estadosActivos()).length, 0);
+  assert.equal(await marcarResuelto('gemini'), false);            // ya estaba cerrado
+  await registrarFallo(GEMINI_SIN_SALDO);                          // sigue sin saldo de verdad
+  const [e] = await estadosActivos();
+  assert.equal(e.avisos, 0);                                       // racha nueva: vuelve a avisar
+  await registrarExito('gemini');                                  // y una respuesta buena la cierra
+  assert.equal((await estadosActivos()).length, 0);
 });

@@ -92,6 +92,7 @@ export const POLITICAS: Record<string, PolicyEntry> = {
   'GET /api/avisos':                     { rol: 'admin' },
   'PUT /api/avisos':                     { rol: 'admin' },
   'POST /api/avisos/prueba':             { rol: 'admin' },
+  'POST /api/avisos/:proveedor/resuelto': { rol: 'admin' },
   'GET /api/sheets/tabs':                { rol: 'admin' },
   'GET /api/sheets/headers':             { rol: 'admin' },
   'GET /api/drive/folders':              { rol: 'admin' },

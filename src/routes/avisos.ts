@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import {
-  getConfigAvisos, setConfigAvisos, estadosActivos, enviarPrueba, PROVEEDORES_IA,
+  getConfigAvisos, setConfigAvisos, estadosActivos, enviarPrueba, marcarResuelto, PROVEEDORES_IA, type Proveedor,
 } from '../alerts/saldo';
 import { humanizeError } from '../humanizeError';
 
@@ -62,6 +62,19 @@ router.post('/prueba', async (req: Request, res: Response): Promise<void> => {
     res.json({ ok: true });
   } catch (e) {
     res.status(502).json({ error: `No se pudo enviar al espacio: ${humanizeError((e as Error).message)}` });
+  }
+});
+
+router.post('/:proveedor/resuelto', async (req: Request, res: Response): Promise<void> => {
+  const p = req.params.proveedor as Proveedor;
+  if (!(p in PROVEEDORES_IA)) {
+    res.status(400).json({ error: 'Proveedor desconocido.' });
+    return;
+  }
+  try {
+    res.json({ ok: true, cerrado: await marcarResuelto(p) });
+  } catch (e) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 

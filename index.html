@@ -708,6 +708,8 @@ body[data-theme="light"] .client-row.origen:not(.vinculado){background:var(--sur
 .saldo-banner p{margin:0}
 .saldo-banner p+p{margin-top:6px}
 .saldo-banner .saldo-nota{color:var(--muted)}
+.saldo-banner .saldo-resolver{margin:8px 0 4px}
+.saldo-prov .saldo-resolver{grid-column:2;justify-self:start;margin-top:4px}
 .saldo-banner a{color:inherit;text-underline-offset:3px}
 .nav-dot{width:7px;height:7px;border-radius:50%;background:var(--danger);margin-left:auto;flex-shrink:0;
   box-shadow:0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent)}
@@ -5805,7 +5807,8 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         : `Aún no hay espacio de Chat para avisar: <a href="#saldo-seccion">elígelo abajo</a>.`;
       banner.innerHTML = `<i class="ti ti-alert-triangle" aria-hidden="true"></i><div>`
         + activos.map(a => `<p><b>${_esc(a.nombre)} se quedó sin saldo</b> el ${_fechaCorta(a.desde)}: `
-          + `${_esc(a.frena)}. Recarga en ${_esc(a.consola)}; en cuanto vuelva a responder se reanuda solo.</p>`).join('')
+          + `${_esc(a.frena)}. Recarga en ${_esc(a.consola)}; en cuanto vuelva a responder se reanuda solo.</p>`
+          + `<button type="button" class="btn-sm btn-sm-cancel saldo-resolver" onclick="resolverSaldo('${a.proveedor}', this)">Marcar como resuelto</button>`).join('')
         + `<p class="saldo-nota">${avisos}</p></div>`;
     }
 
@@ -5814,9 +5817,26 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       const estado = a
         ? `<span class="saldo-estado mal">Sin saldo desde el ${_fechaCorta(a.desde)}`
           + (a.avisos ? ` · ${a.avisos} ${a.avisos === 1 ? 'aviso enviado' : 'avisos enviados'}` : '') + `</span>`
+          + `<button type="button" class="btn-sm btn-sm-cancel saldo-resolver" onclick="resolverSaldo('${a.proveedor}', this)">Marcar como resuelto</button>`
         : `<span class="saldo-estado">Sin incidencias</span>`;
       return `<div class="saldo-prov"><div><b>${nombre}</b> <span>· ${uso}</span></div>${estado}</div>`;
     }).join('');
+  }
+
+  // Para cuando ya se recargó pero no queda llamada pendiente que lo demuestre.
+  // Si en realidad sigue sin saldo, el próximo fallo vuelve a abrir el aviso.
+  async function resolverSaldo(proveedor, btn) {
+    btn.disabled = true; btn.textContent = 'Cerrando…';
+    try {
+      const r = await fetch(`/api/avisos/${encodeURIComponent(proveedor)}/resuelto`, { method: 'POST' });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      await refreshSaldo();
+      _showToast('Aviso cerrado. Si vuelve a fallar por saldo, se avisará de nuevo.');
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Marcar como resuelto';
+      _showToast('No se pudo cerrar: ' + e.message);
+    }
   }
 
   async function _cargarEspaciosSaldo() {
