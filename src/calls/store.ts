@@ -118,7 +118,12 @@ export async function listCalls(c: Cuenta, f: ListFilters = {}): Promise<CallRow
   if (f.hasta) add(`(l.fecha AT TIME ZONE 'America/Mexico_City') <  (?::date + 1)`, f.hasta);
 
   if (f.estado === 'corta')             where.push('a.estado IS NULL AND l.duracion_seg < $1');
-  else if (f.estado === 'sin_procesar') where.push('a.estado IS NULL AND l.duracion_seg >= $1');
+  // "Sin procesar" es todo lo que aún no terminó: lo que nunca se tocó y lo que
+  // se quedó a medias (pendiente, o transcrita sin análisis). Mismo criterio que
+  // countByEstado, o el filtro y su contador dirían números distintos.
+  else if (f.estado === 'sin_procesar') {
+    where.push(`((a.estado IS NULL AND l.duracion_seg >= $1) OR a.estado IN ('pendiente','transcrita'))`);
+  }
   else if (f.estado)                    add('a.estado = ?', f.estado);
   // Por defecto se ocultan las cortas: son el 95 % de las filas y el pipeline no
   // las va a tocar nunca. Se ven pidiendo el estado 'corta' explícitamente.
@@ -260,7 +265,10 @@ export async function countByEstado(
 ): Promise<Record<string, number>> {
   const esq = esquemaDe(c);
   const { rows } = await (await poolDe(c)).query(
-    `SELECT COALESCE(a.estado,
+    // pendiente y transcrita son pasos internos del pipeline: para quien mira,
+    // la llamada sigue sin procesar. Se pliegan aquí para que la pestaña, las
+    // tarjetas de Ajustes y "Reprocesar" cuenten igual.
+    `SELECT COALESCE(CASE WHEN a.estado IN ('pendiente','transcrita') THEN 'sin_procesar' ELSE a.estado END,
               CASE WHEN l.duracion_seg >= $2 THEN 'sin_procesar' ELSE 'corta' END) AS estado,
             count(*)::int AS n
        FROM ${esq}.llamadas l

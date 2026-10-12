@@ -1375,8 +1375,6 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
             <option value="analizada">Analizada</option>
             <option value="fallida">Fallida</option>
             <option value="sin_procesar">Sin procesar</option>
-            <option value="transcrita">Transcrita</option>
-            <option value="descartada">Descartada</option>
             <option value="corta">Corta (bajo el umbral)</option>
           </select>
         </div>
@@ -4952,7 +4950,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         el.textContent = `Aún sin llamadas: aparecerán aquí en cuanto su sistema escriba en ${schema}.llamadas.`;
         return;
       }
-      const pend = n('sin_procesar') + n('pendiente') + n('transcrita');
+      const pend = n('sin_procesar');   // pendiente y transcrita ya vienen plegados
       el.innerHTML = [
         `<b>${_num(total)}</b> llamadas`,
         `<b>${_num(n('analizada'))}</b> analizadas`,
@@ -7821,6 +7819,9 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
   let _callSel = null;        // { slug, call_id } de la fila seleccionada
   const _callsPorId = new Map();  // lo que el listado ya trajo, por call_id
 
+  // pendiente y transcrita son pasos internos del pipeline: para quien mira la
+  // llamada sigue sin procesar (y se puede procesar). Igual que countByEstado.
+  const _estUI = e => (!e || e === 'pendiente' || e === 'transcrita') ? 'sin_procesar' : e;
   const _CALL_EST = {
     analizada:'Analizada', fallida:'Fallida', descartada:'Descartada',
     pendiente:'Pendiente', transcrita:'Transcrita', sin_procesar:'Sin procesar',
@@ -7917,7 +7918,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       box.innerHTML =
         `<div class="calls-row head"><div>Fecha</div><div>Asesor</div><div>Duración</div><div>Estado</div><div>Calif.</div><div></div></div>` +
         calls.map(c => {
-          const est = c.estado || 'sin_procesar';
+          const est = _estUI(c.estado);
           return `
           <div class="calls-row item" data-cid="${_esc(c.call_id)}" onclick="toggleCall('${_esc(slug)}','${_esc(c.call_id)}')">
             <div>${_esc(_fechaHora(c.fecha))}</div>
@@ -7963,7 +7964,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     document.querySelectorAll('#calls-list .calls-row.item').forEach(r =>
       r.classList.toggle('sel', r.dataset.cid === callId));
 
-    const est = c.estado || 'sin_procesar';
+    const est = _estUI(c.estado);
     document.getElementById('cd-title').textContent = c.asesor || 'Sin asesor';
     document.getElementById('cd-meta').innerHTML = [
       _esc(_fechaHora(c.fecha)),
