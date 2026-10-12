@@ -1381,13 +1381,23 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         <div class="field" style="min-width:190px;margin:0;">
           <label class="field-label">Periodo</label>
           <select id="calls-periodo" onchange="onCallsPeriodo()">
-            <option value="30d">Últimos 30 días</option>
-            <option value="hoy">Hoy</option>
-            <option value="semana">Semana actual</option>
-            <option value="mes">Mes actual</option>
-            <option value="mes_ant">Mes anterior</option>
-            <option value="todo">Todo</option>
-            <option value="custom">Personalizado…</option>
+            <option value="30d" selected>Últimos 30 días</option>
+            <optgroup label="Días">
+              <option value="hoy">Hoy</option>
+              <option value="ayer">Ayer</option>
+            </optgroup>
+            <optgroup label="Semanas">
+              <option value="semana">Semana actual</option>
+              <option value="semana_ant">Semana anterior</option>
+            </optgroup>
+            <optgroup label="Meses">
+              <option value="mes">Mes actual</option>
+              <option value="mes_ant">Mes anterior</option>
+            </optgroup>
+            <optgroup label="Otro">
+              <option value="todo">Todo</option>
+              <option value="custom">Personalizado…</option>
+            </optgroup>
           </select>
         </div>
         <!-- Desde y Hasta van juntos en un solo ítem flex: si el ancho no da,
@@ -7778,9 +7788,12 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     switch (preset) {
       case 'hoy':
         return { from: d(Y, M, D), to: d(Y, M, D) };
-      case 'semana': {
+      case 'ayer':
+        return { from: d(Y, M, D - 1), to: d(Y, M, D - 1) };   // el día 0 cae en el mes previo
+      case 'semana':
+      case 'semana_ant': {
         const dow = hoy.getDay();
-        const lunes = D - (dow === 0 ? 6 : dow - 1);
+        const lunes = D - (dow === 0 ? 6 : dow - 1) - (preset === 'semana_ant' ? 7 : 0);
         return { from: d(Y, M, lunes), to: d(Y, M, lunes + 6) };
       }
       case 'mes':
@@ -8201,6 +8214,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
   .zs-opt.zs-sel { font-weight: 600; }
   .zs-opt.zs-sel::after { content: '✓'; margin-left: auto; color: var(--accent); font-size: 11px; }
   .zs-opt.zs-free { color: var(--muted); font-style: italic; }
+  .zs-sep { height: 0.5px; background: var(--border); margin: 5px 6px; }
   .zs-empty { padding: 10px; font-size: var(--t-sec); color: var(--faint); text-align: center; }
 
   /* Toggle Lista / Escribir (estilo n8n: fixed / expression) */
@@ -8255,8 +8269,9 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     }
     function setActive(i) {
       activeIdx = i;
-      Array.from(list.children).forEach((el, idx) => {
-        const on = idx === i && el.classList.contains('zs-opt');
+      // Solo opciones: los separadores de grupo no cuentan para las flechas.
+      Array.from(list.querySelectorAll('.zs-opt')).forEach((el, idx) => {
+        const on = idx === i;
         el.classList.toggle('zs-active', on);
         if (on) el.scrollIntoView({ block: 'nearest' });
       });
@@ -8279,7 +8294,16 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         const e = document.createElement('div'); e.className = 'zs-empty'; e.textContent = 'Sin resultados';
         list.appendChild(e); return;
       }
+      // Un <optgroup> se pinta como una línea entre grupos (sin título: el
+      // contenido ya se explica). Buscando no, que la lista ya viene filtrada.
+      let grupo;
       filtered.forEach((o, i) => {
+        const g = o.parentElement.tagName === 'OPTGROUP' ? o.parentElement : null;
+        if (!nq && i > 0 && g !== grupo) {
+          const sep = document.createElement('div'); sep.className = 'zs-sep'; sep.setAttribute('role', 'separator');
+          list.appendChild(sep);
+        }
+        grupo = g;
         const row = document.createElement('div');
         row.className = 'zs-opt' + (o.value && o.value === sel.value ? ' zs-sel' : '');
         row.textContent = o.textContent;
