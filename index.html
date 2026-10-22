@@ -890,7 +890,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     <button class="app-tab active" id="tab-btn-reports" onclick="setTab('reports')" title="Reportes"><i class="ti ti-file-analytics"></i><span>Reportes</span></button>
     <button class="app-tab" id="tab-btn-radar" onclick="setTab('radar')" title="Radar"><i class="ti ti-radar"></i><span>Radar</span></button>
     <button class="app-tab" id="tab-btn-dashboard" data-admin onclick="setTab('dashboard')" title="Dashboard"><i class="ti ti-layout-dashboard"></i><span>Dashboard</span></button>
-    <button class="app-tab" id="tab-btn-automation" data-admin onclick="setTab('automation')" title="Automatización"><i class="ti ti-bolt"></i><span>Automatización</span></button>
+    <button class="app-tab" id="tab-btn-automation" onclick="setTab('automation')" title="Automatización"><i class="ti ti-bolt"></i><span>Automatización</span></button>
     <button class="app-tab" id="tab-btn-calls" onclick="setTab('calls')" title="Llamadas"><i class="ti ti-phone"></i><span>Llamadas</span></button>
     <div class="sb-group">Sistema</div>
     <button class="app-tab" id="tab-btn-settings" onclick="setTab('settings')" title="Ajustes"><i class="ti ti-settings"></i><span>Ajustes</span><i class="nav-dot" id="saldo-dot" hidden aria-label="Un proveedor de IA se quedó sin saldo"></i></button>
@@ -1299,7 +1299,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
   <div id="tab-automation" class="tab-panel">
     <div class="panel-header">
       <div></div>
-      <button class="btn-sm btn-sm-green" onclick="openScheduleForm()"><i class="ti ti-plus" style="font-size:var(--t-sec);vertical-align:middle;"></i>&nbsp;Nueva automatización</button>
+      <button class="btn-sm btn-sm-green" data-admin onclick="openScheduleForm()"><i class="ti ti-plus" style="font-size:var(--t-sec);vertical-align:middle;"></i>&nbsp;Nueva automatización</button>
     </div>
     <div id="schedule-list"></div>
   </div>
@@ -2221,6 +2221,14 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         <label class="form-label">Contexto del negocio</label>
         <textarea class="form-control" id="ecf-contexto" rows="4" placeholder="Qué vende, a quién y con qué propuesta. Opcional, pero el análisis mejora bastante con esto."></textarea>
       </div>
+      <details class="radar-adv" id="ecf-adv" style="margin-top:22px;">
+        <summary class="section-label">Ajustes avanzados</summary>
+        <div class="form-label" style="margin-bottom:12px;">Pestañas que ve el cliente</div>
+        <label class="wiz-toggle"><input type="checkbox" role="switch" id="ecf-tab-reports"><span>Reportes</span></label>
+        <label class="wiz-toggle"><input type="checkbox" role="switch" id="ecf-tab-radar"><span>Radar de Objeciones</span></label>
+        <label class="wiz-toggle"><input type="checkbox" role="switch" id="ecf-tab-automation"><span>Automatizaciones <span style="color:var(--faint);">· solo lectura</span></span></label>
+        <div class="form-hint" style="margin-top:0;">Llamadas y Ajustes siempre están visibles.</div>
+      </details>
     </div>
     <div class="form-modal-footer">
       <button class="btn-sm btn-sm-cancel" onclick="closeExternalClientForm()">Cancelar</button>
@@ -3232,10 +3240,30 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       }
       if (esCliente()) {
         document.body.dataset.role = 'client';
-        _APP_TABS = ['reports', 'radar', 'calls', 'settings'];
+        _APP_TABS = ['reports', 'radar', 'calls', 'settings'];   // hasta saber su config
+        document.getElementById('tab-btn-automation').style.display = 'none';   // sin parpadeo
       } else if (me?.role === 'admin') {
         void refreshSaldo();   // el punto del menú se ve nada más entrar
       }
+      return me;
+    })
+    .then(async me => {
+      if (!esCliente()) return me;
+      // Sus pestañas opcionales salen de su ClientConfig; /api/clients/:id es
+      // tenant/param, así que sirve igual con su cookie y en vista remota.
+      let c = null;
+      try { const r = await fetch(`/api/clients/${encodeURIComponent(_clientId())}`); if (r.ok) c = await r.json(); } catch (_) {}
+      _APP_TABS = [..._PESTANAS_OPC.filter(t => _pestanaVisible(c, t)), 'calls', 'settings'];
+      _PESTANAS_OPC.filter(t => _APP_TABS.includes(t)).forEach(t => { document.getElementById('tab-btn-' + t).style.display = ''; });
+      _PESTANAS_OPC.filter(t => !_APP_TABS.includes(t)).forEach(t => {
+        // setTab solo recorre _APP_TABS: sin esto, Reportes (activa de inicio) se quedaría pintada.
+        document.getElementById('tab-btn-' + t).style.display = 'none';
+        document.getElementById('tab-btn-' + t).classList.remove('active');
+        document.getElementById('tab-' + t).classList.remove('active');
+      });
+      const pedida = (location.hash || '').slice(1);
+      if (_APP_TABS.includes(pedida)) setTab(pedida);
+      else if (!_APP_TABS.includes(_currentTab)) setTab(_APP_TABS[0]);
       return me;
     })
     .catch(() => null);
@@ -4411,6 +4439,9 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
   // ── Tab navigation ─────────────────────────────────────────────────────────
   // let y no const: al resolver la sesión, un rol client la recorta a sus 3 pestañas.
   let _APP_TABS = ['reports','radar','dashboard','automation','calls','settings','admin'];
+  // Copia de pestanaVisible() (src/clients/manager.ts): ausente = Reportes y Radar sí, Automatización no.
+  const _PESTANAS_OPC   = ['reports', 'radar', 'automation'];
+  const _pestanaVisible = (c, t) => c?.pestanas?.[t] ?? (t !== 'automation');
   let _currentTab = 'reports';
   let _schedSig   = '';
   let _schedPollTimer = null;
@@ -4432,6 +4463,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     radar:    ['Radar de Objeciones', 'Qué preguntan tus prospectos y cómo responde tu equipo · reporte mensual en PDF'],
     calls:    ['Llamadas', 'Tus llamadas, transcritas y analizadas automáticamente'],
     settings: ['Ajustes',  'Tu base de datos y tu cuenta'],
+    automation: ['Automatizaciones', 'Los reportes que se generan solos para tu equipo'],
   };
 
   function setTab(tab) {
@@ -5226,6 +5258,9 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
             <div style="font-size:var(--t-ui);color:var(--faint);margin-top:3px;" id="admin-db-${_esc(c.id)}">
               ${users.length} acceso${users.length === 1 ? '' : 's'}
             </div>
+            <div style="font-size:var(--t-ui);color:var(--faint);margin-top:2px;">
+              Ve: ${[..._PESTANAS_OPC.filter(t => _pestanaVisible(c, t)), 'calls', 'settings'].map(t => _TAB_META[t][0]).join(' · ')}
+            </div>
           </div>
           <button class="link-btn" onclick="enterClientPreview('${_esc(c.id)}')" title="Abrir su dashboard como lo verá él">Ver su vista</button>
           <button class="link-btn" onclick="openExternalClientForm('${_esc(c.id)}')">Editar</button>
@@ -5305,6 +5340,8 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     document.getElementById('ecf-save').textContent  = c ? 'Guardar' : 'Crear cliente';
     document.getElementById('ecf-name').value     = c?.name ?? '';
     document.getElementById('ecf-contexto').value  = c?.contexto_negocio ?? '';
+    _PESTANAS_OPC.forEach(t => { document.getElementById('ecf-tab-' + t).checked = _pestanaVisible(c, t); });
+    document.getElementById('ecf-adv').open = false;
     const b = document.getElementById('extclient-modal-backdrop');
     b.style.display = 'flex'; b.classList.add('show');
     document.getElementById('ecf-name').focus();
@@ -5321,6 +5358,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       name,
       contexto_negocio: document.getElementById('ecf-contexto').value.trim(),
       calls_source: 'cliente_pg',
+      pestanas: Object.fromEntries(_PESTANAS_OPC.map(t => [t, document.getElementById('ecf-tab-' + t).checked])),
     };
     btn.disabled = true;
     try {
@@ -7158,15 +7196,19 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     const el = document.getElementById('schedule-list');
     el.innerHTML = '<div class="token-empty" style="padding:16px 0;"><div class="spin-xs" style="margin:0 auto;"></div></div>';
     try {
-      const [schedules, clients] = await Promise.all([
+      let [schedules, clients] = await Promise.all([
         fetch(SCHEDULES_API).then(r => r.json()),
         fetch(CLIENTS_API).then(r => r.json()).catch(() => []),
       ]);
       const cMap = {};
       clients.forEach(c => { cMap[c.id] = c.name; });
+      // En vista remota la sesión es de admin y el servidor las devuelve todas.
+      if (esCliente()) schedules = schedules.filter(s => s.client_id === _clientId());
 
       if (!schedules.length) {
-        el.innerHTML = '<div class="token-empty">No hay automatizaciones. Crea la primera con el botón de arriba.</div>';
+        el.innerHTML = esCliente()
+          ? '<div class="token-empty">Aún no tienes automatizaciones programadas.</div>'
+          : '<div class="token-empty">No hay automatizaciones. Crea la primera con el botón de arriba.</div>';
         return;
       }
       el.innerHTML = '';
@@ -7214,6 +7256,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
             `<div class="sched-next${when.warn ? ' warn' : ''}">${_esc(when.text)}</div>` +
           `</div>` +
           badge +
+          (esCliente() ? '' :
           `<div class="client-row-actions" style="position:relative;">` +
             `<button class="icon-btn" title="${s.enabled ? 'Pausar' : 'Activar'}" onclick="toggleSchedule('${s.id}',${!s.enabled})"><i class="ti ti-${s.enabled ? 'player-pause' : 'player-play'}"></i></button>` +
             `<button class="icon-btn" title="Más acciones" aria-haspopup="true" onclick="toggleKebab(event,'${s.id}')"><i class="ti ti-dots-vertical"></i></button>` +
@@ -7223,7 +7266,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
               `<div class="kebab-sep"></div>` +
               `<button class="kebab-item danger" role="menuitem" onclick="closeAllKebabs();deleteScheduleRow('${s.id}','${_esc(s.name)}')"><i class="ti ti-trash"></i>Eliminar</button>` +
             `</div>` +
-          `</div>`;
+          `</div>`);
         el.appendChild(card);
       });
     } catch(e) {

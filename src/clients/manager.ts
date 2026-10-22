@@ -84,7 +84,17 @@ export interface ClientConfig {
   // imported from Sheets into the `advisors` table, so the one-time import
   // never runs again even if it found zero advisors that first time.
   advisors_seeded?:        boolean;
+
+  // Pestañas opcionales que ve un cliente externo (Llamadas y Ajustes van
+  // siempre). Ausente = como antes de existir: Reportes y Radar sí, Automatización no.
+  pestanas?:               Partial<Record<PestanaCliente, boolean>>;
 }
+
+export type PestanaCliente = 'reports' | 'radar' | 'automation';
+
+/** Única regla de visibilidad en el servidor; index.html lleva una copia. */
+export const pestanaVisible = (c: Pick<ClientConfig, 'pestanas'> | undefined, tab: PestanaCliente): boolean =>
+  c?.pestanas?.[tab] ?? (tab !== 'automation');
 
 // Normaliza los campos que pueden llegar como link pegado (o como ID): extrae el
 // ID real de la hoja y de las carpetas de Drive. Red de seguridad del servidor,

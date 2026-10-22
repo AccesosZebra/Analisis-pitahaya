@@ -45,6 +45,11 @@ const ClientBodySchema = z.object({
   prompt_transcripcion:          z.string().optional(),
   prompt_analisis:               z.string().optional(),
   call_min_duration_seconds:     z.number().int().min(0).max(3600).optional(),
+  pestanas: z.object({
+    reports:    z.boolean().optional(),
+    radar:      z.boolean().optional(),
+    automation: z.boolean().optional(),
+  }).strict().optional(),
 })
 // Los campos de Sheets dejaron de ser obligatorios para que un cliente de
 // Postgres pueda existir sin hoja. Eso abre la puerta a guardar uno sin ninguna

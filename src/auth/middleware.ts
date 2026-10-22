@@ -4,6 +4,7 @@ import { getSessionUser, type SessionUser } from './session';
 import { matchPolicy } from './policy';
 import { sessionStillValid } from './users';
 import { getJob } from '../jobs/store';
+import { getClient, pestanaVisible } from '../clients/manager';
 
 // Rutas/recursos públicos que deben servirse sin sesión (los usa la página de
 // login). Todo lo demás queda detrás de la sesión cuando la auth está activa.
@@ -52,6 +53,10 @@ export async function enforcePolicy(req: AuthedRequest, res: Response, next: Nex
     return;
   }
   const cid = user.client_id!;
+  if (m.entry.tab && !pestanaVisible(await getClient(cid), m.entry.tab)) {
+    res.status(403).json({ error: 'Esta sección no está habilitada para tu cuenta.' });
+    return;
+  }
   switch (m.entry.own) {
     case 'query': {
       const asked = req.query.client_id;

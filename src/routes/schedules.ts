@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { listSchedules, createSchedule, updateSchedule, deleteSchedule } from '../schedules/store';
 import { runScheduleNow, runningScheduleIds } from '../schedules/runner';
+import type { AuthedRequest } from '../auth/middleware';
 
 const router = Router();
 
@@ -75,12 +76,18 @@ const ScheduleBodySchema = ScheduleBaseSchema.refine(
 
 const SchedulePatchSchema = ScheduleBaseSchema.partial();
 
-router.get('/', async (_req: Request, res: Response): Promise<void> => {
+router.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
     const running = runningScheduleIds();
     // `running` is a transient, in-memory flag (not persisted) so the UI can
     // animate cards with an in-flight run — manual or automatic alike.
-    res.json((await listSchedules()).map(s => ({ ...s, running: running.has(s.id) })));
+    const all = (await listSchedules()).map(s => ({ ...s, running: running.has(s.id) }));
+    const user = (req as AuthedRequest).user;
+    if (user?.role !== 'client') { res.json(all); return; }
+    // Un cliente ve solo las suyas. Los espacios de Chat son de Zebra y el
+    // error crudo es jerga interna: el estado ya lo cuenta last_status.
+    res.json(all.filter(s => s.client_id === user.client_id)
+      .map(({ chat_space_id, chat_message, error_chat_space_id, last_error, ...s }) => s));
   } catch (e) { res.status(500).json({ error: (e as Error).message }); }
 });
 

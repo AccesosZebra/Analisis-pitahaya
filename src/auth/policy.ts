@@ -18,17 +18,21 @@
 //                           tenant dentro del propio handler)
 // ─────────────────────────────────────────────────────────────────────────────
 
+import type { PestanaCliente } from '../clients/manager';
+
 export type Own = 'query' | 'body' | 'param' | 'job' | 'handler';
 export interface PolicyEntry {
   rol: 'public' | 'admin' | 'tenant';
   own?: Own;
+  /** Pestaña opcional del cliente: si la tiene apagada, 403 (ClientConfig.pestanas). */
+  tab?: PestanaCliente;
 }
 
 export const POLITICAS: Record<string, PolicyEntry> = {
   'GET /api/health': { rol: 'public' },
 
   // ── Reportes: el corazón de la vista del cliente ───────────────────────────
-  'POST /api/report':                    { rol: 'tenant', own: 'body' },
+  'POST /api/report':                    { rol: 'tenant', own: 'body', tab: 'reports' },
   'GET /api/report/previous':            { rol: 'tenant', own: 'query' },
   'GET /api/report/:jobId':              { rol: 'tenant', own: 'job' },
   'POST /api/report/:jobId/cancel':      { rol: 'tenant', own: 'job' },
@@ -37,8 +41,8 @@ export const POLITICAS: Record<string, PolicyEntry> = {
   // ':id' es el id de un documento archivado: ni un client_id ('param') ni un
   // job ('job'). El handler compara con req.user y responde 404, no 403.
   'GET /api/report/history/:id/download': { rol: 'tenant', own: 'handler' },
-  'POST /api/report/radar':              { rol: 'tenant', own: 'body' },
-  'GET /api/report/radar-preflight':     { rol: 'tenant', own: 'query' },
+  'POST /api/report/radar':              { rol: 'tenant', own: 'body', tab: 'radar' },
+  'GET /api/report/radar-preflight':     { rol: 'tenant', own: 'query', tab: 'radar' },
   // radar-upload se queda en admin: es la opcion avanzada (subir un .md ya
   // compilado), puede correr sin cliente y no tiene tenant al que acotarla.
   'POST /api/report/radar-upload':       { rol: 'admin' },
@@ -83,7 +87,9 @@ export const POLITICAS: Record<string, PolicyEntry> = {
   'GET /api/stats':                      { rol: 'admin' },
   'GET /api/metrics':                    { rol: 'admin' },
   'POST /api/metrics/pdf':               { rol: 'admin' },
-  'GET /api/schedules':                  { rol: 'admin' },
+  // El cliente las VE (solo las suyas y sin datos de Chat) si tiene la pestaña;
+  // crearlas, editarlas o lanzarlas sigue siendo de la agencia.
+  'GET /api/schedules':                  { rol: 'tenant', own: 'handler', tab: 'automation' },
   'POST /api/schedules':                 { rol: 'admin' },
   'PUT /api/schedules/:id':              { rol: 'admin' },
   'POST /api/schedules/:id/run':         { rol: 'admin' },
