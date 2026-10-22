@@ -47,6 +47,7 @@ export interface Schedule {
   // Cliente externo: POST con el PDF a esta URL (n8n) en vez de Chat. Vacío = sin webhook.
   webhook_url?:     string;
   webhook_message?: string;   // misma plantilla y variables que chat_message, sin {{link}}
+  webhook_pdf_prueba?: boolean;  // Mensaje: adjunta una hoja de prueba para montar el flujo en n8n
   created_at:    string;
   last_run?:     string;   // timestamp of the last SUCCESSFUL fire
   last_attempt?: string;   // timestamp of the last fire attempt (success or failure)

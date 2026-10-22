@@ -1860,6 +1860,12 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
           </div>
           <div class="form-hint" style="margin-top:6px;" id="sf-type-hint">Genera un reporte con IA y lo sube a Drive.</div>
         </div>
+        <!-- Solo para un Mensaje por webhook (cliente externo): Chat no admite adjuntos y un Reporte ya lleva su PDF. -->
+        <details class="radar-adv" id="sf-adv" style="display:none;margin-top:14px;">
+          <summary class="section-label">Ajustes avanzados</summary>
+          <label class="wiz-toggle" style="margin-bottom:6px;"><input type="checkbox" role="switch" id="sf-pdf-prueba"><span>Adjuntar PDF de prueba</span></label>
+          <div class="form-hint" style="margin-top:0;">Manda una hoja de prueba en el campo <code>archivo</code>, para montar el flujo de n8n sin generar un reporte.</div>
+        </details>
       </div>
 
       <!-- Tipo de reporte (gate): solo visible cuando el tipo es "Reporte" -->
@@ -7443,7 +7449,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       ? (ext ? 'Genera un reporte con IA y lo guarda en el historial del cliente.' : 'Genera un reporte con IA y lo sube a Drive.')
       : (ext ? 'Solo envía un mensaje al webhook, sin generar ningún reporte.' : 'Solo envía un mensaje a un espacio de Google Chat, sin generar ningún reporte.');
     document.getElementById('sf-wh-hint').innerHTML = _scheduleType === 'message'
-      ? 'Manda el mensaje por POST (multipart), sin PDF.'
+      ? 'Manda el mensaje por POST (multipart). Sin PDF, salvo que actives el de prueba en Ajustes avanzados.'
       : 'Al terminar, manda el PDF y un mensaje por POST (multipart): el archivo llega en el campo <code>archivo</code>.';
     const isMsg = _scheduleType === 'message';
     const resolved = isMsg || _scheduleReportKind !== null;   // ¿ya se puede mostrar el resto?
@@ -7452,6 +7458,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     _show('sf-freq-section',  resolved);
     _show('sf-space-section', resolved && !ext);
     _show('sf-webhook-section', resolved && ext);
+    _show('sf-adv', ext && isMsg);
     _show('sf-err-section',   resolved);
     _show('sf-state-section', resolved);
     _show('sf-report-section', !isMsg && _scheduleReportKind === 'analisis');
@@ -7881,6 +7888,8 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     document.getElementById('sf-chat-no').classList.add('active');
     document.getElementById('sf-chat-yes').classList.remove('active');
     setScheduleWebhook(false);
+    document.getElementById('sf-pdf-prueba').checked = false;
+    document.getElementById('sf-adv').open = false;
     document.getElementById('sf-wh-url').value = '';
     document.getElementById('sf-wh-message').value = '';
     document.getElementById('sf-chat-fields').style.display = 'none';
@@ -7922,6 +7931,8 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         document.getElementById('sf-wh-url').value     = s.webhook_url || '';
         document.getElementById('sf-wh-message').value = s.webhook_message || '';
         setScheduleWebhook(!!s.webhook_url);
+        document.getElementById('sf-pdf-prueba').checked = !!s.webhook_pdf_prueba;
+        document.getElementById('sf-adv').open = !!s.webhook_pdf_prueba;
         clientSel.value = s.client_id;
         setScheduleType(s.notify_only ? 'message' : 'report');
         if (!s.notify_only) setScheduleReportKind(s.report_kind || 'analisis');
@@ -8020,6 +8031,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       // '' y no undefined: al editar, el servidor mezcla y una clave ausente dejaría la URL anterior.
       webhook_url:     conWebhook ? whUrl : '',
       webhook_message: conWebhook ? document.getElementById('sf-wh-message').value.trim() : '',
+      webhook_pdf_prueba: conWebhook && isMsg && document.getElementById('sf-pdf-prueba').checked,
       error_notify_enabled: _scheduleErrorNotify,
       error_chat_space_id:  _scheduleErrorNotify ? document.getElementById('sf-err-space').value : undefined,
     };

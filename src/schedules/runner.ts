@@ -15,7 +15,7 @@ import { monthLabel, weekLabel } from '../google/drive';
 import { runRadarForClient, runRadarForClientFortnight, fortnightForRun, type RadarDbResult } from '../radar/dbFlow';
 import { env } from '../config/env';
 import { pdfVault } from '../jobs/vault';
-import { enviarWebhook } from './webhook';
+import { enviarWebhook, pdfDePrueba } from './webhook';
 
 // ── Timezone helpers ──────────────────────────────────────────────────────────
 
@@ -320,7 +320,8 @@ async function fireScheduleInner(schedule: Schedule): Promise<FireResult> {
     if (schedule.frequency === 'once') await updateSchedule(schedule.id, { enabled: false });
     const hoy = getNowInTz(tz).dateStr;
     await notifyChat(schedule, client.name, hoy, '', 'analisis');
-    if (schedule.webhook_url && !(await notifyWebhook(schedule, client, hoy, 'mensaje'))) {
+    const prueba = schedule.webhook_pdf_prueba ? await pdfDePrueba() : undefined;
+    if (schedule.webhook_url && !(await notifyWebhook(schedule, client, hoy, 'mensaje', prueba))) {
       await markFailed(schedule.id, 'No se pudo entregar el mensaje por webhook.');
       _running.delete(schedule.id);
       return { ok: false, error: 'No se pudo entregar el mensaje por webhook.' };

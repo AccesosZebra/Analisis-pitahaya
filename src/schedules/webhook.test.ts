@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assertWebhookUrl, webhookForm } from './webhook';
+import { assertWebhookUrl, webhookForm, pdfDePrueba } from './webhook';
 
 test('webhook: solo https y nunca hacia la red interna', async () => {
   await assert.rejects(assertWebhookUrl('http://n8n.ejemplo.com/webhook/x'), /https/);
@@ -19,6 +19,12 @@ test('webhook: campos planos y el PDF como archivo', async () => {
   assert.equal(f.name, 'r.pdf');
   assert.equal(f.type, 'application/pdf');
   assert.equal(await f.text(), '%PDF-1.4');
+});
+
+test('webhook: la hoja de prueba es un PDF de verdad', async () => {
+  const { buf, filename } = await pdfDePrueba();
+  assert.equal(buf.subarray(0, 5).toString(), '%PDF-');
+  assert.equal(filename, 'prueba.pdf');
 });
 
 test('webhook: un Mensaje va sin archivo', () => {

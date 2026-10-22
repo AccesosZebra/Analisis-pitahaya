@@ -1,3 +1,4 @@
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { assertHostAllowed } from '../calls/tenant';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -36,6 +37,14 @@ export function webhookForm(campos: WebhookCampos, pdf?: { buf: Buffer; filename
   // Una automatización de tipo Mensaje no genera PDF: va solo el texto.
   if (pdf) form.append('archivo', new Blob([pdf.buf], { type: 'application/pdf' }), pdf.filename);
   return form;
+}
+
+/** Hoja de prueba para un Mensaje: deja montar en n8n el manejo del archivo sin generar un reporte. */
+export async function pdfDePrueba(): Promise<{ buf: Buffer; filename: string }> {
+  const doc  = await PDFDocument.create();
+  const page = doc.addPage();
+  page.drawText('PDF de prueba - Zebra Reports', { x: 50, y: page.getHeight() - 60, size: 14, font: await doc.embedFont(StandardFonts.Helvetica) });
+  return { buf: Buffer.from(await doc.save()), filename: 'prueba.pdf' };
 }
 
 /** Lanza si no se pudo entregar; quien llama decide cómo avisarlo. */

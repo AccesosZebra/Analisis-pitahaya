@@ -50,6 +50,7 @@ const ScheduleBaseSchema = z.object({
   // '' borra (updateSchedule mezcla). El filtro anti-red-interna corre al enviar.
   webhook_url:     z.union([z.literal(''), z.string().url().refine(u => u.startsWith('https://'), 'El webhook tiene que ser https.')]).optional(),
   webhook_message: z.string().optional(),
+  webhook_pdf_prueba: z.boolean().optional(),
 });
 
 const ScheduleBodySchema = ScheduleBaseSchema.refine(
