@@ -7725,13 +7725,16 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     clientSel.innerHTML = '<option value="">— Selecciona un cliente —</option>';
     try {
       const clients = await fetch(CLIENTS_API).then(r => r.json());
-      // Un cliente externo no tiene Automatizacion: planDeEntrega le quita
-      // Drive y Chat, que son las dos entregas de una automatizacion. Ofrecerlo
-      // aqui era prometer algo que al dispararse no tenia donde entregar.
-      clients.filter(c => c.calls_source !== 'cliente_pg').forEach(c => {
-        const o = document.createElement('option');
-        o.value = c.id; o.textContent = c.name;
-        clientSel.appendChild(o);
+      // Un cliente externo no entrega por Drive: su PDF se archiva en su propia
+      // base (planDeEntrega.archivo) y lo ve en su historial. Locales arriba,
+      // externos abajo, con título para no confundirlos.
+      const grupos = [['Locales', clients.filter(c => c.calls_source !== 'cliente_pg')],
+                      ['Externos', clients.filter(c => c.calls_source === 'cliente_pg')]];
+      grupos.filter(([, cs]) => cs.length).forEach(([titulo, cs]) => {
+        const g = document.createElement('optgroup');
+        g.label = titulo; g.dataset.titulo = '';
+        cs.forEach(c => g.appendChild(new Option(c.name, c.id)));
+        clientSel.appendChild(g);
       });
     } catch{}
 
@@ -8497,6 +8500,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
   .zs-opt.zs-sel::after { content: '✓'; margin-left: auto; color: var(--accent); font-size: 11px; }
   .zs-opt.zs-free { color: var(--muted); font-style: italic; }
   .zs-sep { height: 0.5px; background: var(--border); margin: 5px 6px; }
+  .zs-grp { padding: 6px 10px 4px; font-size: var(--t-label); font-weight: 500; letter-spacing: var(--tk-label); text-transform: uppercase; color: var(--faint); }
   .zs-empty { padding: 10px; font-size: var(--t-sec); color: var(--faint); text-align: center; }
 
   /* Toggle Lista / Escribir (estilo n8n: fixed / expression) */
@@ -8576,14 +8580,21 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         const e = document.createElement('div'); e.className = 'zs-empty'; e.textContent = 'Sin resultados';
         list.appendChild(e); return;
       }
-      // Un <optgroup> se pinta como una línea entre grupos (sin título: el
-      // contenido ya se explica). Buscando no, que la lista ya viene filtrada.
+      // Un <optgroup> se pinta como una línea entre grupos, sin título salvo que
+      // lleve data-titulo (cuando el contenido NO se explica solo). Buscando no,
+      // que la lista ya viene filtrada.
       let grupo;
       filtered.forEach((o, i) => {
         const g = o.parentElement.tagName === 'OPTGROUP' ? o.parentElement : null;
-        if (!nq && i > 0 && g !== grupo) {
-          const sep = document.createElement('div'); sep.className = 'zs-sep'; sep.setAttribute('role', 'separator');
-          list.appendChild(sep);
+        if (!nq && g !== grupo) {
+          if (i > 0) {
+            const sep = document.createElement('div'); sep.className = 'zs-sep'; sep.setAttribute('role', 'separator');
+            list.appendChild(sep);
+          }
+          if (g && g.hasAttribute('data-titulo')) {
+            const t = document.createElement('div'); t.className = 'zs-grp'; t.textContent = g.label;
+            list.appendChild(t);
+          }
         }
         grupo = g;
         const row = document.createElement('div');
