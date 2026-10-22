@@ -1844,7 +1844,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         </div>
         <div class="form-group">
           <label class="form-label">Cliente *</label>
-          <select class="form-control" id="sf-client-id"></select>
+          <select class="form-control" id="sf-client-id" onchange="_applyScheduleVisibility()"></select>
         </div>
       </div>
 
@@ -2239,6 +2239,48 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
 
 <!-- Alta de acceso para un cliente externo (admin). El cliente NO se elige:
      viene de la tarjeta desde la que se abrio este modal. -->
+<!-- Cambiar día y hora de una automatización (cliente externo). La frecuencia
+     y qué se genera no se tocan aquí: son de Zebra. -->
+<div class="form-modal-backdrop" id="horario-modal-backdrop">
+  <div class="form-modal" style="max-width:420px;">
+    <div class="form-modal-header">
+      <div>
+        <div class="modal-title">Cambiar horario</div>
+        <div class="modal-subtitle" id="hf-sub"></div>
+      </div>
+      <button class="modal-close show" onclick="closeHorarioForm()">✕</button>
+    </div>
+    <div class="form-modal-body">
+      <div class="form-group" id="hf-week-group">
+        <label class="form-label">Día de la semana</label>
+        <select class="form-control" id="hf-day-of-week">
+          <option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miércoles</option>
+          <option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option>
+          <option value="0">Domingo</option>
+        </select>
+      </div>
+      <div class="form-group" id="hf-month-group">
+        <label class="form-label">Día del mes (1–28)</label>
+        <input class="form-control" id="hf-day-of-month" type="number" min="1" max="28">
+      </div>
+      <div class="form-grid-2">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Hora (0–23)</label>
+          <input class="form-control" id="hf-hour" type="number" min="0" max="23">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Minuto (0–59)</label>
+          <input class="form-control" id="hf-minute" type="number" min="0" max="59">
+        </div>
+      </div>
+    </div>
+    <div class="form-modal-footer">
+      <button class="btn-sm btn-sm-cancel" onclick="closeHorarioForm()">Cancelar</button>
+      <button class="btn-sm btn-sm-green" onclick="saveHorario(this)">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="form-modal-backdrop" id="user-modal-backdrop">
   <div class="form-modal" style="max-width:440px;">
     <div class="form-modal-header">
@@ -7212,6 +7254,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         return;
       }
       el.innerHTML = '';
+      _schedById = new Map(schedules.map(s => [s.id, s]));
       schedules.forEach(s => {
         const card = document.createElement('div');
         card.id = 'sched-card-' + s.id;
@@ -7256,7 +7299,11 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
             `<div class="sched-next${when.warn ? ' warn' : ''}">${_esc(when.text)}</div>` +
           `</div>` +
           badge +
-          (esCliente() ? '' :
+          (esCliente() ?
+          `<div class="client-row-actions">` +
+            `<button class="icon-btn" title="${s.enabled ? 'Pausar' : 'Activar'}" onclick="toggleSchedule('${s.id}',${!s.enabled})"><i class="ti ti-${s.enabled ? 'player-pause' : 'player-play'}"></i></button>` +
+            `<button class="icon-btn" title="Cambiar día y hora" onclick="openHorarioForm('${s.id}')"><i class="ti ti-clock-edit"></i></button>` +
+          `</div>` :
           `<div class="client-row-actions" style="position:relative;">` +
             `<button class="icon-btn" title="${s.enabled ? 'Pausar' : 'Activar'}" onclick="toggleSchedule('${s.id}',${!s.enabled})"><i class="ti ti-${s.enabled ? 'player-pause' : 'player-play'}"></i></button>` +
             `<button class="icon-btn" title="Más acciones" aria-haspopup="true" onclick="toggleKebab(event,'${s.id}')"><i class="ti ti-dots-vertical"></i></button>` +
@@ -7339,13 +7386,26 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
   }
 
   // Muestra/oculta secciones según tipo de automatización + tipo de reporte.
+  // Un cliente externo no recibe mensajes de Chat: sin tipo Mensaje y sin
+  // "Selección de espacio". El aviso de errores se queda (llega a Zebra).
+  let _sfExternos = new Set();
+  const _sfExterno = () => _sfExternos.has(document.getElementById('sf-client-id').value);
+
   function _applyScheduleVisibility() {
+    const ext = _sfExterno();
+    if (ext && _scheduleType === 'message') { setScheduleType('report'); return; }
+    _show('sf-type-message', !ext);
+    if (_scheduleType === 'report') {
+      document.getElementById('sf-type-hint').textContent = ext
+        ? 'Genera un reporte con IA y lo guarda en el historial del cliente.'
+        : 'Genera un reporte con IA y lo sube a Drive.';
+    }
     const isMsg = _scheduleType === 'message';
     const resolved = isMsg || _scheduleReportKind !== null;   // ¿ya se puede mostrar el resto?
 
     _show('sf-kind-section', !isMsg);                          // gate solo para "Reporte"
     _show('sf-freq-section',  resolved);
-    _show('sf-space-section', resolved);
+    _show('sf-space-section', resolved && !ext);
     _show('sf-err-section',   resolved);
     _show('sf-state-section', resolved);
     _show('sf-report-section', !isMsg && _scheduleReportKind === 'analisis');
@@ -7728,6 +7788,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       // Un cliente externo no entrega por Drive: su PDF se archiva en su propia
       // base (planDeEntrega.archivo) y lo ve en su historial. Locales arriba,
       // externos abajo, con título para no confundirlos.
+      _sfExternos = new Set(clients.filter(c => c.calls_source === 'cliente_pg').map(c => c.id));
       const grupos = [['Locales', clients.filter(c => c.calls_source !== 'cliente_pg')],
                       ['Externos', clients.filter(c => c.calls_source === 'cliente_pg')]];
       grupos.filter(([, cs]) => cs.length).forEach(([titulo, cs]) => {
@@ -7864,7 +7925,8 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         alert('Selecciona la semana a analizar.'); return;
       }
     }
-    if (_scheduleChat && !document.getElementById('sf-chat-space').value) {
+    const sinChat = _sfExterno();   // el servidor lo limpia igual; esto evita pedir un espacio que no se usa
+    if (!sinChat && _scheduleChat && !document.getElementById('sf-chat-space').value) {
       alert('Selecciona un espacio de Google Chat o desactiva la notificación.'); return;
     }
     if (_scheduleErrorNotify && !document.getElementById('sf-err-space').value) {
@@ -7893,8 +7955,8 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       include_general: _scheduleGeneral,
       advisors:        _scheduleAdvisors === 'all' ? 'all' : 'active',
       notify_only:     isMsg,
-      chat_space_id:   _scheduleChat ? document.getElementById('sf-chat-space').value : undefined,
-      chat_message:    _scheduleChat ? document.getElementById('sf-chat-message').value.trim() || undefined : undefined,
+      chat_space_id:   _scheduleChat && !sinChat ? document.getElementById('sf-chat-space').value : undefined,
+      chat_message:    _scheduleChat && !sinChat ? document.getElementById('sf-chat-message').value.trim() || undefined : undefined,
       error_notify_enabled: _scheduleErrorNotify,
       error_chat_space_id:  _scheduleErrorNotify ? document.getElementById('sf-err-space').value : undefined,
     };
@@ -7935,12 +7997,65 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
 
   async function toggleSchedule(id, enabled) {
     try {
-      const r = await fetch(`${SCHEDULES_API}/${id}`, {
+      // El cliente solo tiene la ruta acotada; el admin, la completa.
+      const r = await fetch(`${SCHEDULES_API}/${id}${esCliente() ? '/horario' : ''}`, {
         method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ enabled })
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       renderScheduleList();
     } catch(e) { alert('Error actualizando estado: ' + e.message); }
+  }
+
+  // ── Cambiar horario (cliente externo): día según la frecuencia, y hora ──────
+  let _schedById = new Map();
+  let _horarioId = null;
+
+  function openHorarioForm(id) {
+    const s = _schedById.get(id);
+    if (!s) return;
+    _horarioId = id;
+    document.getElementById('hf-sub').textContent = _freqLabel(s);
+    _show('hf-week-group',  s.frequency === 'weekly');
+    _show('hf-month-group', s.frequency === 'monthly');
+    document.getElementById('hf-day-of-week').value  = String(s.day_of_week ?? 1);
+    document.getElementById('hf-day-of-month').value = String(s.day_of_month ?? 1);
+    document.getElementById('hf-hour').value   = String(s.hour ?? 8);
+    document.getElementById('hf-minute').value = String(s.minute ?? 0);
+    const b = document.getElementById('horario-modal-backdrop');
+    b.style.display = 'flex'; b.classList.add('show');
+  }
+  function closeHorarioForm() {
+    const b = document.getElementById('horario-modal-backdrop');
+    b.style.display = 'none'; b.classList.remove('show');
+    _horarioId = null;
+  }
+  async function saveHorario(btn) {
+    const s = _schedById.get(_horarioId);
+    if (!s) return;
+    const hour   = parseInt(document.getElementById('hf-hour').value);
+    const minute = parseInt(document.getElementById('hf-minute').value) || 0;
+    if (isNaN(hour) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      await _info('Hora no válida', 'La hora va de 0 a 23 y el minuto de 0 a 59.'); return;
+    }
+    const body = { hour, minute };
+    if (s.frequency === 'weekly')  body.day_of_week  = parseInt(document.getElementById('hf-day-of-week').value);
+    if (s.frequency === 'monthly') {
+      const d = parseInt(document.getElementById('hf-day-of-month').value);
+      if (isNaN(d) || d < 1 || d > 28) { await _info('Día no válido', 'El día del mes va de 1 a 28.'); return; }
+      body.day_of_month = d;
+    }
+    btn.disabled = true;
+    try {
+      const r = await fetch(`${SCHEDULES_API}/${_horarioId}/horario`, {
+        method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      closeHorarioForm();
+      renderScheduleList();
+    } catch (e) {
+      await _info('No se pudo guardar', e.message);
+    } finally { btn.disabled = false; }
   }
 
   async function deleteScheduleRow(id, name) {

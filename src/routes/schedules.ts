@@ -1,10 +1,23 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { listSchedules, createSchedule, updateSchedule, deleteSchedule } from '../schedules/store';
+import { listSchedules, getSchedule, createSchedule, updateSchedule, deleteSchedule, type Schedule } from '../schedules/store';
+import { getClient } from '../clients/manager';
+import { HorarioSchema, rechazoHorario } from '../schedules/horario';
 import { runScheduleNow, runningScheduleIds } from '../schedules/runner';
 import type { AuthedRequest } from '../auth/middleware';
 
 const router = Router();
+
+// Lo que un cliente externo puede ver de una automatización: ni los espacios de
+// Chat (son de Zebra) ni el error crudo (jerga interna; el estado ya lo cuenta last_status).
+const vistaCliente = ({ chat_space_id, chat_message, error_chat_space_id, last_error, ...s }: Schedule & { running?: boolean }) => s;
+
+// Un cliente externo no recibe mensajes de Chat: ni "reporte listo" ni el tipo
+// Mensaje. El aviso de error sí se queda, porque llega a Zebra, no al cliente.
+async function rechazoExterno(clientId: string | undefined, notifyOnly: boolean | undefined): Promise<string | null> {
+  if (!clientId || (await getClient(clientId))?.calls_source !== 'cliente_pg') return null;
+  return notifyOnly ? 'Un cliente externo no admite automatizaciones de tipo Mensaje.' : '';
+}
 
 const ScheduleBaseSchema = z.object({
   name:            z.string().min(1),
@@ -84,10 +97,8 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     const all = (await listSchedules()).map(s => ({ ...s, running: running.has(s.id) }));
     const user = (req as AuthedRequest).user;
     if (user?.role !== 'client') { res.json(all); return; }
-    // Un cliente ve solo las suyas. Los espacios de Chat son de Zebra y el
-    // error crudo es jerga interna: el estado ya lo cuenta last_status.
-    res.json(all.filter(s => s.client_id === user.client_id)
-      .map(({ chat_space_id, chat_message, error_chat_space_id, last_error, ...s }) => s));
+    // Un cliente ve solo las suyas.
+    res.json(all.filter(s => s.client_id === user.client_id).map(vistaCliente));
   } catch (e) { res.status(500).json({ error: (e as Error).message }); }
 });
 
@@ -97,7 +108,10 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ error: parsed.error.issues.map(i => i.message).join('; ') });
     return;
   }
-  try { res.status(201).json(await createSchedule(parsed.data)); }
+  const externo = await rechazoExterno(parsed.data.client_id, parsed.data.notify_only);
+  if (externo) { res.status(400).json({ error: externo }); return; }
+  const data = externo === '' ? { ...parsed.data, chat_space_id: undefined, chat_message: undefined } : parsed.data;
+  try { res.status(201).json(await createSchedule(data)); }
   catch (e) { res.status(500).json({ error: (e as Error).message }); }
 });
 
@@ -107,8 +121,30 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ error: parsed.error.issues.map((i: z.ZodIssue) => i.message).join('; ') });
     return;
   }
-  try { res.json(await updateSchedule(req.params.id, parsed.data)); }
+  const actual = await getSchedule(req.params.id);
+  const externo = await rechazoExterno(parsed.data.client_id ?? actual?.client_id, parsed.data.notify_only ?? actual?.notify_only);
+  if (externo) { res.status(400).json({ error: externo }); return; }
+  // undefined explícito: updateSchedule mezcla, y omitir la clave dejaría el Chat de antes.
+  const patch = externo === '' ? { ...parsed.data, chat_space_id: undefined, chat_message: undefined } : parsed.data;
+  try { res.json(await updateSchedule(req.params.id, patch)); }
   catch (e) { res.status(404).json({ error: (e as Error).message }); }
+});
+
+// PUT /:id/horario — lo único que un cliente externo puede cambiar de las suyas
+// (ver schedules/horario.ts).
+router.put('/:id/horario', async (req: Request, res: Response): Promise<void> => {
+  const parsed = HorarioSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues.map((i: z.ZodIssue) => i.message).join('; ') });
+    return;
+  }
+  const user = (req as AuthedRequest).user;
+  const no = rechazoHorario(await getSchedule(req.params.id), user, parsed.data);
+  if (no) { res.status(no.status).json({ error: no.error }); return; }
+  try {
+    const s = await updateSchedule(req.params.id, parsed.data);
+    res.json(user?.role === 'client' ? vistaCliente(s) : s);
+  } catch (e) { res.status(404).json({ error: (e as Error).message }); }
 });
 
 // POST /:id/run — manually fire a schedule now (bypasses time/day gating).

@@ -105,6 +105,7 @@ test('las rutas atadas a una pestaña son tenant: en admin el gate no se aplicar
   const malas = Object.entries(POLITICAS).filter(([, e]) => e.tab && e.rol !== 'tenant').map(([k]) => k);
   assert.deepEqual(malas, []);
   assert.equal(POLITICAS['GET /api/schedules'].tab, 'automation');
+  assert.equal(POLITICAS['PUT /api/schedules/:id/horario'].tab, 'automation');
   for (const k of ['POST /api/schedules', 'PUT /api/schedules/:id', 'POST /api/schedules/:id/run', 'DELETE /api/schedules/:id']) {
     assert.equal(POLITICAS[k].rol, 'admin', `${k} debe seguir siendo solo de admin`);
   }

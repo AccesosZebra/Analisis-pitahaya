@@ -88,8 +88,10 @@ export const POLITICAS: Record<string, PolicyEntry> = {
   'GET /api/metrics':                    { rol: 'admin' },
   'POST /api/metrics/pdf':               { rol: 'admin' },
   // El cliente las VE (solo las suyas y sin datos de Chat) si tiene la pestaña;
-  // crearlas, editarlas o lanzarlas sigue siendo de la agencia.
+  // crearlas, cambiar qué generan, lanzarlas o borrarlas sigue siendo de la agencia.
   'GET /api/schedules':                  { rol: 'tenant', own: 'handler', tab: 'automation' },
+  // Pausar/activar y día y hora de las suyas; el handler comprueba que sea suya.
+  'PUT /api/schedules/:id/horario':      { rol: 'tenant', own: 'handler', tab: 'automation' },
   'POST /api/schedules':                 { rol: 'admin' },
   'PUT /api/schedules/:id':              { rol: 'admin' },
   'POST /api/schedules/:id/run':         { rol: 'admin' },
