@@ -123,18 +123,19 @@ async function notifyChat(
   ignoreCustomTemplate = false,
 ): Promise<void> {
   if (!schedule.chat_space_id) return;
-  // Sin enlace no hay mensaje que mandar: la plantilla existe para entregar un
-  // {link} de Drive, y un cliente sin Drive tampoco toca Chat (planDeEntrega).
-  // Avisar con el hueco vacío sería peor que no avisar.
-  if (!reportUrl) return;
+  // Un reporte sin enlace no tiene nada que anunciar: la plantilla existe para
+  // entregar un {link} de Drive, y avisar con el hueco vacío sería peor que no
+  // avisar. Un Mensaje (notify_only) no lleva reporte: su texto ES la entrega.
+  if (!reportUrl && !schedule.notify_only) return;
 
-  const tpl = (ignoreCustomTemplate ? '' : schedule.chat_message?.trim()) || DEFAULT_TPL[kind];
+  const tpl = (ignoreCustomTemplate ? '' : schedule.chat_message?.trim())
+    || (schedule.notify_only ? '{{nombre_cliente}} · {{periodo}}' : DEFAULT_TPL[kind]);
   const text = buildChatMessage(tpl, {
     nombre_cliente: clientName,
     periodo,
-    link:  reportUrl,
+    link:  reportUrl ?? '',
     nombre: schedule.name,
-    tipo:  KIND_LABEL[kind],
+    tipo:  schedule.notify_only ? 'Mensaje' : KIND_LABEL[kind],
     periodicidad: periodicityLabel(schedule),
   });
 
