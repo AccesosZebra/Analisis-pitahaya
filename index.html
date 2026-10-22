@@ -485,6 +485,8 @@
     .sched-when i{font-size:14px;color:var(--muted);}
     .sched-next{font-size:var(--t-ui);color:var(--muted);margin-top:3px;padding-left:21px;white-space:nowrap;}
     .sched-next.warn{color:var(--danger);}
+    .sched-grp{margin:22px 0 10px;}
+    .sched-grp:first-child{margin-top:0;}
     .schedule-card .client-row-actions{border-left:0.5px solid var(--border);padding-left:12px;}
     @media (max-width:720px){
       .sched-when,.sched-next{white-space:normal;}
@@ -7244,6 +7246,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       ]);
       const cMap = {};
       clients.forEach(c => { cMap[c.id] = c.name; });
+      const externos = new Set(clients.filter(c => c.calls_source === 'cliente_pg').map(c => c.id));
       // En vista remota la sesión es de admin y el servidor las devuelve todas.
       if (esCliente()) schedules = schedules.filter(s => s.client_id === _clientId());
 
@@ -7255,7 +7258,19 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       }
       el.innerHTML = '';
       _schedById = new Map(schedules.map(s => [s.id, s]));
+      // Admin: locales arriba y externos abajo, con título. El cliente solo ve las suyas.
+      const grupoDe = s => (externos.has(s.client_id) ? 'Externos' : 'Locales');
+      if (!esCliente()) schedules = [...schedules].sort((a, b) => (grupoDe(a) === grupoDe(b) ? 0 : grupoDe(a) === 'Locales' ? -1 : 1));
+      const titulos = !esCliente() && externos.size > 0;
+      let grupoPrevio = null;
       schedules.forEach(s => {
+        if (titulos && grupoDe(s) !== grupoPrevio) {
+          grupoPrevio = grupoDe(s);
+          const h = document.createElement('div');
+          h.className = 'section-label sched-grp';
+          h.textContent = grupoPrevio;
+          el.appendChild(h);
+        }
         const card = document.createElement('div');
         card.id = 'sched-card-' + s.id;
         card.className = 'schedule-card' + (s.enabled ? '' : ' disabled') + (s.running ? ' running' : '');
