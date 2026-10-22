@@ -44,6 +44,9 @@ export interface Schedule {
   chat_message?:  string;    // message template with {{variables}}
   error_notify_enabled?: boolean;  // notify a Google Chat space when this automation fails
   error_chat_space_id?:  string;   // "spaces/AAAA..." target for error notifications
+  // Cliente externo: POST con el PDF a esta URL (n8n) en vez de Chat. Vacío = sin webhook.
+  webhook_url?:     string;
+  webhook_message?: string;   // misma plantilla y variables que chat_message, sin {{link}}
   created_at:    string;
   last_run?:     string;   // timestamp of the last SUCCESSFUL fire
   last_attempt?: string;   // timestamp of the last fire attempt (success or failure)

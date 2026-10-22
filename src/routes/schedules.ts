@@ -9,8 +9,9 @@ import type { AuthedRequest } from '../auth/middleware';
 const router = Router();
 
 // Lo que un cliente externo puede ver de una automatización: ni los espacios de
-// Chat (son de Zebra) ni el error crudo (jerga interna; el estado ya lo cuenta last_status).
-const vistaCliente = ({ chat_space_id, chat_message, error_chat_space_id, last_error, ...s }: Schedule & { running?: boolean }) => s;
+// Chat ni el webhook (son de Zebra) ni el error crudo (jerga interna; el estado
+// ya lo cuenta last_status).
+const vistaCliente = ({ chat_space_id, chat_message, error_chat_space_id, last_error, webhook_url, webhook_message, ...s }: Schedule & { running?: boolean }) => s;
 
 // Un cliente externo no recibe mensajes de Chat: ni "reporte listo" ni el tipo
 // Mensaje. El aviso de error sí se queda, porque llega a Zebra, no al cliente.
@@ -48,6 +49,9 @@ const ScheduleBaseSchema = z.object({
   chat_message:    z.string().optional(),
   error_notify_enabled: z.boolean().default(false),
   error_chat_space_id:  z.string().optional(),
+  // '' borra (updateSchedule mezcla). El filtro anti-red-interna corre al enviar.
+  webhook_url:     z.union([z.literal(''), z.string().url().refine(u => u.startsWith('https://'), 'El webhook tiene que ser https.')]).optional(),
+  webhook_message: z.string().optional(),
 });
 
 const ScheduleBodySchema = ScheduleBaseSchema.refine(

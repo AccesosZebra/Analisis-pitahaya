@@ -309,6 +309,8 @@ export async function runJob(job: Job): Promise<void> {
       try {
         console.log(`[runner] Step 8.5: generating Radar de Objeciones for ${client.name}...`);
         radarResult = await runRadarForClient(client, job.month);
+        // En la guarda junto al reporte: el webhook de la automatización lo manda después.
+        pdfVault.put(`${job.id}:radar`, radarResult.pdfBuffer, radarResult.filename);
         radarInput  = radarResult.input_tokens;
         radarOutput = radarResult.output_tokens;
         console.log(`[runner] Step 8.5 done: radar PDF = ${radarResult.driveUrl}`);

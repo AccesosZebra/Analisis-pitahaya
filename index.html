@@ -2046,6 +2046,30 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
         </div>
       </div>
 
+      <!-- Webhook (solo cliente externo): en lugar de Chat, el PDF va por POST a n8n -->
+      <div class="form-section" id="sf-webhook-section" style="display:none;">
+        <div class="form-section-title">Webhook (n8n)</div>
+        <div class="form-group">
+          <div class="form-toggle-row">
+            <button class="form-toggle-btn active" id="sf-wh-no"  onclick="setScheduleWebhook(false)">Sin webhook</button>
+            <button class="form-toggle-btn"        id="sf-wh-yes" onclick="setScheduleWebhook(true)">Enviar a webhook</button>
+          </div>
+          <div class="form-hint">Al terminar, manda el PDF y un mensaje por POST (multipart): el archivo llega en el campo <code>archivo</code>.</div>
+        </div>
+        <div id="sf-wh-fields" style="display:none;">
+          <div class="form-group">
+            <label class="form-label">URL del webhook *</label>
+            <input class="form-control" id="sf-wh-url" type="url" placeholder="https://tu-n8n…/webhook/…">
+          </div>
+          <div class="form-group" style="margin-top:8px;">
+            <label class="form-label">Mensaje</label>
+            <textarea class="form-textarea" id="sf-wh-message" rows="3"
+              placeholder="*{{tipo}}* · {{periodicidad}}&#10;{{nombre_cliente}} · {{periodo}}"></textarea>
+            <div class="form-hint">Variables: <code>{{nombre_cliente}}</code>, <code>{{periodo}}</code>, <code>{{nombre}}</code>, <code>{{tipo}}</code>, <code>{{periodicidad}}</code>. Vacío = mensaje predeterminado.</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Notificación de errores -->
       <div class="form-section" id="sf-err-section">
         <div class="form-section-title">Notificación de errores</div>
@@ -7344,6 +7368,13 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
   let _scheduleType      = 'report';   // 'report' | 'message'  (message → notify_only)
   let _scheduleReportKind = null;      // null | 'analisis' | 'radar'  (solo type='report')
   let _scheduleChat      = false;
+  let _scheduleWebhook   = false;
+  function setScheduleWebhook(on) {
+    _scheduleWebhook = on;
+    document.getElementById('sf-wh-no').classList.toggle('active', !on);
+    document.getElementById('sf-wh-yes').classList.toggle('active', on);
+    _show('sf-wh-fields', on);
+  }
 
   const _SF_FREQ_HINTS = {
     daily:    'Se ejecutará todos los días a la hora indicada.',
@@ -7421,6 +7452,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     _show('sf-kind-section', !isMsg);                          // gate solo para "Reporte"
     _show('sf-freq-section',  resolved);
     _show('sf-space-section', resolved && !ext);
+    _show('sf-webhook-section', resolved && ext);
     _show('sf-err-section',   resolved);
     _show('sf-state-section', resolved);
     _show('sf-report-section', !isMsg && _scheduleReportKind === 'analisis');
@@ -7849,6 +7881,9 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     _scheduleChat = false;
     document.getElementById('sf-chat-no').classList.add('active');
     document.getElementById('sf-chat-yes').classList.remove('active');
+    setScheduleWebhook(false);
+    document.getElementById('sf-wh-url').value = '';
+    document.getElementById('sf-wh-message').value = '';
     document.getElementById('sf-chat-fields').style.display = 'none';
     // Reset error-notification toggle
     document.getElementById('sf-err-space').innerHTML = '<option value="">— Selecciona un espacio —</option>';
@@ -7885,6 +7920,9 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
           }
         }
         document.getElementById('sf-chat-message').value  = s.chat_message || '';
+        document.getElementById('sf-wh-url').value     = s.webhook_url || '';
+        document.getElementById('sf-wh-message').value = s.webhook_message || '';
+        setScheduleWebhook(!!s.webhook_url);
         clientSel.value = s.client_id;
         setScheduleType(s.notify_only ? 'message' : 'report');
         if (!s.notify_only) setScheduleReportKind(s.report_kind || 'analisis');
@@ -7944,6 +7982,11 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     if (!sinChat && _scheduleChat && !document.getElementById('sf-chat-space').value) {
       alert('Selecciona un espacio de Google Chat o desactiva la notificación.'); return;
     }
+    const whUrl = document.getElementById('sf-wh-url').value.trim();
+    const conWebhook = sinChat && _scheduleWebhook;
+    if (conWebhook && !/^https:\/\/\S+$/.test(whUrl)) {
+      alert('El webhook necesita una URL https completa, o desactívalo.'); return;
+    }
     if (_scheduleErrorNotify && !document.getElementById('sf-err-space').value) {
       alert('Selecciona un espacio para la notificación de errores o desactívala.'); return;
     }
@@ -7972,6 +8015,9 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
       notify_only:     isMsg,
       chat_space_id:   _scheduleChat && !sinChat ? document.getElementById('sf-chat-space').value : undefined,
       chat_message:    _scheduleChat && !sinChat ? document.getElementById('sf-chat-message').value.trim() || undefined : undefined,
+      // '' y no undefined: al editar, el servidor mezcla y una clave ausente dejaría la URL anterior.
+      webhook_url:     conWebhook ? whUrl : '',
+      webhook_message: conWebhook ? document.getElementById('sf-wh-message').value.trim() : '',
       error_notify_enabled: _scheduleErrorNotify,
       error_chat_space_id:  _scheduleErrorNotify ? document.getElementById('sf-err-space').value : undefined,
     };

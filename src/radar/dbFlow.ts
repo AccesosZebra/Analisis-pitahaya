@@ -55,6 +55,7 @@ export interface RadarDbResult {
   // null cuando el cliente no tiene carpeta de Drive: su entrega es la descarga.
   driveUrl:      string | null;
   pdfBuffer:     Buffer;
+  filename:      string;
   input_tokens:  number;
   output_tokens: number;
 }
@@ -187,6 +188,7 @@ async function runRadarCore(client: ClientConfig, period: RadarPeriod): Promise<
     reportData:    result.reportData,
     driveUrl,
     pdfBuffer:     result.pdfBuffer,
+    filename,
     input_tokens:  result.input_tokens,
     output_tokens: result.output_tokens,
   };

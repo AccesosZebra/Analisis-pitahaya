@@ -14,6 +14,8 @@ import { sendChatMessage } from '../google/chat';
 import { monthLabel, weekLabel } from '../google/drive';
 import { runRadarForClient, runRadarForClientFortnight, fortnightForRun, type RadarDbResult } from '../radar/dbFlow';
 import { env } from '../config/env';
+import { pdfVault } from '../jobs/vault';
+import { enviarWebhook } from './webhook';
 
 // ── Timezone helpers ──────────────────────────────────────────────────────────
 
@@ -146,6 +148,41 @@ async function notifyChat(
 
 // Sends a Google Chat alert to the schedule's configured error space when the
 // automation fails. No-op unless the schedule enabled error notifications.
+// ── Webhook (cliente externo) ─────────────────────────────────────────────────
+// Sin Drive no hay link que mandar: el PDF va dentro del POST (schedules/webhook.ts).
+// Un fallo aquí no tumba la automatización —el reporte ya está en su historial—,
+// pero no se traga: va al canal de errores de Zebra, como cualquier otro fallo.
+async function notifyWebhook(
+  schedule: Schedule,
+  client: { id: string; name: string },
+  periodo: string,
+  kind: ReportKind,
+  pdf: { buf: Buffer; filename: string } | undefined,
+): Promise<void> {
+  if (!schedule.webhook_url) return;
+  if (!pdf) {
+    await notifyError(schedule, client.name, periodo, `No se envió el webhook: el PDF de ${KIND_LABEL[kind]} ya no estaba disponible.`);
+    return;
+  }
+  const tpl = schedule.webhook_message?.trim() || DEFAULT_TPL[kind].replace(/\n🔗 \{\{link\}\}$/, '');
+  const vars = {
+    nombre_cliente: client.name, periodo, link: '', nombre: schedule.name,
+    tipo: KIND_LABEL[kind], periodicidad: periodicityLabel(schedule),
+  };
+  try {
+    await enviarWebhook(schedule.webhook_url, {
+      evento: 'reporte_listo', cliente_id: client.id, cliente: client.name,
+      automatizacion_id: schedule.id, automatizacion: schedule.name,
+      tipo: vars.tipo, periodicidad: vars.periodicidad, periodo,
+      mensaje: buildChatMessage(tpl, vars),
+    }, pdf);
+    console.log(`[scheduler] Webhook sent for '${schedule.name}' (${kind})`);
+  } catch (e) {
+    console.error(`[scheduler] Webhook failed for '${schedule.name}':`, (e as Error).message);
+    await notifyError(schedule, client.name, periodo, `No se pudo entregar el webhook: ${(e as Error).message}`);
+  }
+}
+
 async function notifyError(
   schedule: Schedule,
   clientName: string,
@@ -305,6 +342,7 @@ async function fireScheduleInner(schedule: Schedule): Promise<FireResult> {
     radarRun()
       .then(async (res) => {
         await markRan(schedule.id);
+        await notifyWebhook(schedule, client, periodLabel, 'radar', { buf: res.pdfBuffer, filename: res.filename });
         await notifyChat(schedule, client.name, periodLabel, res.driveUrl, 'radar');
       })
       .catch(async (err) => {
@@ -436,6 +474,10 @@ async function fireScheduleInner(schedule: Schedule): Promise<FireResult> {
       }
 
       await markRan(schedule.id);
+
+      await notifyWebhook(schedule, client, periodLabel, 'analisis', pdfVault.read(job.id));
+      const radarPdf = pdfVault.read(`${job.id}:radar`);
+      if (radarPdf) await notifyWebhook(schedule, client, periodLabel, 'radar', radarPdf);
 
       if (!schedule.chat_space_id) return;
       const url = done?.results?.combined?.driveUrl
