@@ -2054,7 +2054,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
             <button class="form-toggle-btn active" id="sf-wh-no"  onclick="setScheduleWebhook(false)">Sin webhook</button>
             <button class="form-toggle-btn"        id="sf-wh-yes" onclick="setScheduleWebhook(true)">Enviar a webhook</button>
           </div>
-          <div class="form-hint">Al terminar, manda el PDF y un mensaje por POST (multipart): el archivo llega en el campo <code>archivo</code>.</div>
+          <div class="form-hint" id="sf-wh-hint"></div>
         </div>
         <div id="sf-wh-fields" style="display:none;">
           <div class="form-group">
@@ -7432,20 +7432,19 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
   }
 
   // Muestra/oculta secciones según tipo de automatización + tipo de reporte.
-  // Un cliente externo no recibe mensajes de Chat: sin tipo Mensaje y sin
-  // "Selección de espacio". El aviso de errores se queda (llega a Zebra).
+  // Un cliente externo no recibe nada por Chat: en vez de "Selección de espacio"
+  // tiene Webhook, también para el tipo Mensaje. El aviso de errores se queda (llega a Zebra).
   let _sfExternos = new Set();
   const _sfExterno = () => _sfExternos.has(document.getElementById('sf-client-id').value);
 
   function _applyScheduleVisibility() {
     const ext = _sfExterno();
-    if (ext && _scheduleType === 'message') { setScheduleType('report'); return; }
-    _show('sf-type-message', !ext);
-    if (_scheduleType === 'report') {
-      document.getElementById('sf-type-hint').textContent = ext
-        ? 'Genera un reporte con IA y lo guarda en el historial del cliente.'
-        : 'Genera un reporte con IA y lo sube a Drive.';
-    }
+    document.getElementById('sf-type-hint').textContent = _scheduleType === 'report'
+      ? (ext ? 'Genera un reporte con IA y lo guarda en el historial del cliente.' : 'Genera un reporte con IA y lo sube a Drive.')
+      : (ext ? 'Solo envía un mensaje al webhook, sin generar ningún reporte.' : 'Solo envía un mensaje a un espacio de Google Chat, sin generar ningún reporte.');
+    document.getElementById('sf-wh-hint').innerHTML = _scheduleType === 'message'
+      ? 'Manda el mensaje por POST (multipart), sin PDF.'
+      : 'Al terminar, manda el PDF y un mensaje por POST (multipart): el archivo llega en el campo <code>archivo</code>.';
     const isMsg = _scheduleType === 'message';
     const resolved = isMsg || _scheduleReportKind !== null;   // ¿ya se puede mostrar el resto?
 
@@ -7987,6 +7986,9 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     if (conWebhook && !/^https:\/\/\S+$/.test(whUrl)) {
       alert('El webhook necesita una URL https completa, o desactívalo.'); return;
     }
+    if (sinChat && isMsg && !conWebhook) {
+      alert('Un Mensaje para un cliente externo solo se entrega por webhook: actívalo y pega la URL.'); return;
+    }
     if (_scheduleErrorNotify && !document.getElementById('sf-err-space').value) {
       alert('Selecciona un espacio para la notificación de errores o desactívala.'); return;
     }
@@ -7994,7 +7996,7 @@ body.preview .viewer-card,body.preview .calls-detail-card{top:132px}
     // La tarjeta ya no muestra el nombre (cliente + tipo + frecuencia la identifican),
     // así que el campo es opcional. Pero los mensajes de Chat y los logs del scheduler
     // sí lo usan, y la API lo exige: si el usuario no escribe uno, se arma solo.
-    const kindName = isMsg ? 'Mensaje de Chat'
+    const kindName = isMsg ? (sinChat ? 'Mensaje por webhook' : 'Mensaje de Chat')
                    : isRadar ? 'Radar de Objeciones'
                    : 'Análisis de Llamadas';
     const clientName = document.getElementById('sf-client-id').selectedOptions[0]?.text || clientId;

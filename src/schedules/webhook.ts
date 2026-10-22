@@ -11,7 +11,7 @@ import { assertHostAllowed } from '../calls/tenant';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface WebhookCampos {
-  evento:           'reporte_listo';
+  evento:           'reporte_listo' | 'mensaje';
   cliente_id:       string;
   cliente:          string;
   automatizacion_id: string;
@@ -30,16 +30,17 @@ export async function assertWebhookUrl(raw: string): Promise<URL> {
   return u;
 }
 
-export function webhookForm(campos: WebhookCampos, pdf: { buf: Buffer; filename: string }): FormData {
+export function webhookForm(campos: WebhookCampos, pdf?: { buf: Buffer; filename: string }): FormData {
   const form = new FormData();
   for (const [k, v] of Object.entries(campos)) form.append(k, v);
-  form.append('archivo', new Blob([pdf.buf], { type: 'application/pdf' }), pdf.filename);
+  // Una automatización de tipo Mensaje no genera PDF: va solo el texto.
+  if (pdf) form.append('archivo', new Blob([pdf.buf], { type: 'application/pdf' }), pdf.filename);
   return form;
 }
 
 /** Lanza si no se pudo entregar; quien llama decide cómo avisarlo. */
 export async function enviarWebhook(
-  url: string, campos: WebhookCampos, pdf: { buf: Buffer; filename: string },
+  url: string, campos: WebhookCampos, pdf?: { buf: Buffer; filename: string },
 ): Promise<void> {
   const destino = await assertWebhookUrl(url);
   const res = await fetch(destino, {

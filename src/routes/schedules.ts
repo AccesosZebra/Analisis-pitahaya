@@ -13,12 +13,10 @@ const router = Router();
 // ya lo cuenta last_status).
 const vistaCliente = ({ chat_space_id, chat_message, error_chat_space_id, last_error, webhook_url, webhook_message, ...s }: Schedule & { running?: boolean }) => s;
 
-// Un cliente externo no recibe mensajes de Chat: ni "reporte listo" ni el tipo
-// Mensaje. El aviso de error sí se queda, porque llega a Zebra, no al cliente.
-async function rechazoExterno(clientId: string | undefined, notifyOnly: boolean | undefined): Promise<string | null> {
-  if (!clientId || (await getClient(clientId))?.calls_source !== 'cliente_pg') return null;
-  return notifyOnly ? 'Un cliente externo no admite automatizaciones de tipo Mensaje.' : '';
-}
+// Un cliente externo no recibe nada por Chat (su canal es el webhook). El aviso
+// de error sí se queda, porque llega a Zebra, no al cliente.
+const esExterno = async (clientId: string | undefined) =>
+  !!clientId && (await getClient(clientId))?.calls_source === 'cliente_pg';
 
 const ScheduleBaseSchema = z.object({
   name:            z.string().min(1),
@@ -112,9 +110,8 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     res.status(400).json({ error: parsed.error.issues.map(i => i.message).join('; ') });
     return;
   }
-  const externo = await rechazoExterno(parsed.data.client_id, parsed.data.notify_only);
-  if (externo) { res.status(400).json({ error: externo }); return; }
-  const data = externo === '' ? { ...parsed.data, chat_space_id: undefined, chat_message: undefined } : parsed.data;
+  const data = await esExterno(parsed.data.client_id)
+    ? { ...parsed.data, chat_space_id: undefined, chat_message: undefined } : parsed.data;
   try { res.status(201).json(await createSchedule(data)); }
   catch (e) { res.status(500).json({ error: (e as Error).message }); }
 });
@@ -126,10 +123,9 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     return;
   }
   const actual = await getSchedule(req.params.id);
-  const externo = await rechazoExterno(parsed.data.client_id ?? actual?.client_id, parsed.data.notify_only ?? actual?.notify_only);
-  if (externo) { res.status(400).json({ error: externo }); return; }
   // undefined explícito: updateSchedule mezcla, y omitir la clave dejaría el Chat de antes.
-  const patch = externo === '' ? { ...parsed.data, chat_space_id: undefined, chat_message: undefined } : parsed.data;
+  const patch = await esExterno(parsed.data.client_id ?? actual?.client_id)
+    ? { ...parsed.data, chat_space_id: undefined, chat_message: undefined } : parsed.data;
   try { res.json(await updateSchedule(req.params.id, patch)); }
   catch (e) { res.status(404).json({ error: (e as Error).message }); }
 });

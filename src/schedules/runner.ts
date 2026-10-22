@@ -152,34 +152,39 @@ async function notifyChat(
 // Sin Drive no hay link que mandar: el PDF va dentro del POST (schedules/webhook.ts).
 // Un fallo aquí no tumba la automatización —el reporte ya está en su historial—,
 // pero no se traga: va al canal de errores de Zebra, como cualquier otro fallo.
+// Devuelve si se entregó: para el tipo Mensaje el webhook ES la entrega.
 async function notifyWebhook(
   schedule: Schedule,
   client: { id: string; name: string },
   periodo: string,
-  kind: ReportKind,
-  pdf: { buf: Buffer; filename: string } | undefined,
-): Promise<void> {
-  if (!schedule.webhook_url) return;
-  if (!pdf) {
-    await notifyError(schedule, client.name, periodo, `No se envió el webhook: el PDF de ${KIND_LABEL[kind]} ya no estaba disponible.`);
-    return;
+  kind: ReportKind | 'mensaje',
+  pdf?: { buf: Buffer; filename: string },
+): Promise<boolean> {
+  if (!schedule.webhook_url) return false;
+  const tipo = kind === 'mensaje' ? 'Mensaje' : KIND_LABEL[kind];
+  if (kind !== 'mensaje' && !pdf) {
+    await notifyError(schedule, client.name, periodo, `No se envió el webhook: el PDF de ${tipo} ya no estaba disponible.`);
+    return false;
   }
-  const tpl = schedule.webhook_message?.trim() || DEFAULT_TPL[kind].replace(/\n🔗 \{\{link\}\}$/, '');
+  const tpl = schedule.webhook_message?.trim()
+    || (kind === 'mensaje' ? '{{nombre_cliente}} · {{periodo}}' : DEFAULT_TPL[kind].replace(/\n🔗 \{\{link\}\}$/, ''));
   const vars = {
     nombre_cliente: client.name, periodo, link: '', nombre: schedule.name,
-    tipo: KIND_LABEL[kind], periodicidad: periodicityLabel(schedule),
+    tipo, periodicidad: periodicityLabel(schedule),
   };
   try {
     await enviarWebhook(schedule.webhook_url, {
-      evento: 'reporte_listo', cliente_id: client.id, cliente: client.name,
+      evento: kind === 'mensaje' ? 'mensaje' : 'reporte_listo', cliente_id: client.id, cliente: client.name,
       automatizacion_id: schedule.id, automatizacion: schedule.name,
       tipo: vars.tipo, periodicidad: vars.periodicidad, periodo,
       mensaje: buildChatMessage(tpl, vars),
     }, pdf);
     console.log(`[scheduler] Webhook sent for '${schedule.name}' (${kind})`);
+    return true;
   } catch (e) {
     console.error(`[scheduler] Webhook failed for '${schedule.name}':`, (e as Error).message);
     await notifyError(schedule, client.name, periodo, `No se pudo entregar el webhook: ${(e as Error).message}`);
+    return false;
   }
 }
 
@@ -312,7 +317,13 @@ async function fireScheduleInner(schedule: Schedule): Promise<FireResult> {
   // ── Notify-only mode: just send a Chat message ────────────────────────────
   if (schedule.notify_only) {
     if (schedule.frequency === 'once') await updateSchedule(schedule.id, { enabled: false });
-    await notifyChat(schedule, client.name, getNowInTz(tz).dateStr, '', 'analisis');
+    const hoy = getNowInTz(tz).dateStr;
+    await notifyChat(schedule, client.name, hoy, '', 'analisis');
+    if (schedule.webhook_url && !(await notifyWebhook(schedule, client, hoy, 'mensaje'))) {
+      await markFailed(schedule.id, 'No se pudo entregar el mensaje por webhook.');
+      _running.delete(schedule.id);
+      return { ok: false, error: 'No se pudo entregar el mensaje por webhook.' };
+    }
     await markRan(schedule.id);
     _running.delete(schedule.id);
     return { ok: true };

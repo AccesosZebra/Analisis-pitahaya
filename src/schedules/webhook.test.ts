@@ -20,3 +20,12 @@ test('webhook: campos planos y el PDF como archivo', async () => {
   assert.equal(f.type, 'application/pdf');
   assert.equal(await f.text(), '%PDF-1.4');
 });
+
+test('webhook: un Mensaje va sin archivo', () => {
+  const form = webhookForm({
+    evento: 'mensaje', cliente_id: 'ccc', cliente: 'Cancun', automatizacion_id: 's1',
+    automatizacion: 'A', tipo: 'Mensaje', periodicidad: 'Diario', periodo: '2026-10-22', mensaje: 'hola',
+  });
+  assert.equal(form.get('evento'), 'mensaje');
+  assert.equal(form.get('archivo'), null);
+});
